@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Luca Portfolio Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: #202020;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #f5f5f5;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Gray frame behind pages (like Issuu) - Provides the surrounding margin */
+        #viewer-wrapper {
+            width: 100%;
+            height: 100vh;
+            max-width: 1600px;
+            max-height: 1000px;
+            background: #3a3a3a; /* Dark gray background */
+            padding: 24px; /* Margin around the pages */
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s ease;
+        }
+
+        /* Spread area (now holds one full image) */
+        #spread {
+            width: 100%;
+            height: 100%;
+            background: #3a3a3a; 
+            display: flex;
+            overflow: hidden;
+            position: relative;
+            align-items: center; 
+            justify-content: center; 
+        }
+
+        /* Single Page/Spread Container */
+        .page {
+            /* Now uses 100% width since it holds the entire spread image */
+            width: 100%; 
+            height: 100%; 
+            
+            background: #3a3a3a; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* The image itself simply respects the container size - NO GAP FIX NEEDED! */
+        .page img {
+            display: block;
+            width: auto;
+            max-width: 100%;
+            height: auto;
+            max-height: 100%;
+            object-fit: contain; /* CRITICAL: No cropping, guaranteed to fit */
+            margin: 0; 
+        }
+
+        /* Smooth slide/fade between spreads */
+        #spread.fade-out {
+            opacity: 0;
+            transform: translateX(-20px);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        #spread.fade-in {
+            opacity: 1;
+            transform: translateX(0);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+
+        /* Navigation arrows and other controls fade out in fullscreen */
+        .controls-hidden {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transition: opacity 0.3s ease;
+        }
+        .controls-visible {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            transition: opacity 0.3s ease;
+        }
+
+
+        /* Navigation arrows */
+        .nav-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            border: none;
+            background: rgba(0, 0, 0, 0.6);
+            color: #f5f5f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1000;
+        }
+
+        /* Position buttons relative to the 24px padding */
+        #prev-btn { left: 24px; }
+        #next-btn { right: 24px; }
+
+        .nav-btn:disabled {
+            opacity: 0.25;
+            cursor: default;
+        }
+
+        .nav-btn span {
+            font-size: 22px;
+            line-height: 1;
+        }
+
+        /* Fullscreen button */
+        #fullscreen-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 1000;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #f5f5f5;
+            font-size: 13px;
+            cursor: pointer;
+            letter-spacing: 0.02em;
+        }
+
+        #fullscreen-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        /* Hint for fullscreen exit */
+        #fs-hint {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 999;
+            padding: 6px 12px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #f5f5f5;
+            font-size: 13px;
+            letter-spacing: 0.02em;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        #fs-hint.visible {
+            opacity: 1;
+        }
+
+        /* Page counter and Zoom Control container */
+        #bottom-controls {
+            position: absolute;
+            bottom: 24px; 
+            left: 24px; 
+            width: calc(100% - 48px); 
+            display: flex;
+            align-items: center;
+            justify-content: flex-end; 
+            gap: 16px;
+            z-index: 800;
+        }
+        
+        #page-counter {
+            font-size: 12px;
+            color: #d0d0d0;
+        }
+
+        #zoom-control {
+            display: flex;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+
+        #zoom-control button {
+            background: none;
+            border: none;
+            color: #f5f5f5;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="viewer-wrapper">
+        <button id="fullscreen-btn">Full screen</button>
+        <div id="fs-hint">Press Esc to exit full screen</div>
+
+        <button id="prev-btn" class="nav-btn"><span>&lsaquo;</span></button>
+        <button id="next-btn" class="nav-btn"><span>&rsaquo;</span></button>
+
+        <div id="spread" class="fade-in">
+            <div class="page" id="spread-container"></div>
+        </div>
+        
+        <div id="bottom-controls" class="controls-visible">
+            <div id="page-counter"></div>
+            <div id="zoom-control">
+                <button id="zoom-out-btn">－</button>
+                <button id="zoom-in-btn">＋</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const HIDE_TIMEOUT = 3000; 
+        let currentTimeout = null;
+        let isFullscreen = false;
+        let totalPages = 0; // Total page count (e.g., if there are 10 spreads/pages, this might be 19 or 20)
+
+        // --- Utility Functions (Mostly Unchanged) ---
+
+        function toggleControls(show) {
+            const controls = document.querySelectorAll('.nav-btn, #bottom-controls, #fs-hint');
+            controls.forEach(el => {
+                if (show) {
+                    el.classList.add('controls-visible');
+                    el.classList.remove('controls-hidden');
+                } else {
+                    el.classList.add('controls-hidden');
+                    el.classList.remove('controls-visible');
+                }
+            });
+        }
+
+        function setupControlsHide() {
+            const wrapper = document.getElementById("viewer-wrapper");
+            
+            const hideAfterDelay = () => {
+                if (currentTimeout) clearTimeout(currentTimeout);
+                currentTimeout = setTimeout(() => {
+                    toggleControls(false);
+                }, HIDE_TIMEOUT);
+            };
+
+            const handleMouseMove = () => {
+                if (isFullscreen) {
+                    toggleControls(true);
+                    hideAfterDelay();
+                }
+            };
+            
+            document.addEventListener("fullscreenchange", () => {
+                isFullscreen = !!document.fullscreenElement;
+                
+                if (!isFullscreen) {
+                    if (currentTimeout) clearTimeout(currentTimeout);
+                    toggleControls(true); 
+                } else {
+                    hideAfterDelay();
+                }
+            });
+            
+            wrapper.addEventListener('mousemove', handleMouseMove);
+            wrapper.addEventListener('mouseleave', hideAfterDelay);
+            
+            if (isFullscreen) hideAfterDelay();
+        }
+
+        function checkImage(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(src);
+                img.onerror = () => reject();
+                img.src = src;
+            });
+        }
+        
+        // --- CRITICAL CHANGE: Image Discovery Logic ---
+
+        async function discoverSpreads() {
+            const folder    = "pages";
+            const baseName  = "2501202-GiaramidaroLuca-Portfolio_Page_";
+            const extension = "jpg";
+            const digits    = 2; // Naming is _01, _02, etc. (2 digits)
+            const maxImages = 100; // Max number of sequential image files
+
+            const spreads = [];
+            
+            for (let i = 1; i <= maxImages; i++) {
+                const number = String(i).padStart(digits, "0");
+                const src = `${folder}/${baseName}${number}.${extension}`;
+                
+                try {
+                    await checkImage(src);
+                    
+                    let pageCount = 0;
+                    
+                    // Determine if this is a single page (Cover/Back Cover) or a Spread
+                    // ASSUMPTION: The first page (Page_01) and the last detected page are singles, everything in between is a double spread.
+                    if (i === 1) {
+                         pageCount = 1; // Cover is a single page
+                    } else if (i < maxImages) {
+                         // We will assume it's a double until we detect the end
+                         pageCount = 2; 
+                    }
+
+                    spreads.push({ src: src, index: i, pageCount: pageCount });
+                } catch {
+                    break;
+                }
+            }
+
+            if (spreads.length > 1) {
+                // Correct the last image to be a single page (Back Cover)
+                spreads[spreads.length - 1].pageCount = 1;
+            }
+            
+            return spreads;
+        }
+
+        // --- CRITICAL CHANGE: Render and Counter Logic ---
+
+        function renderSpread(spreads, index) {
+            const currentSpread = spreads[index];
+            const containerEl  = document.getElementById("spread-container");
+            const counterEl  = document.getElementById("page-counter");
+            const spreadEl = document.getElementById("spread");
+
+            spreadEl.classList.remove("fade-in");
+            spreadEl.classList.add("fade-out");
+
+            setTimeout(() => {
+                containerEl.innerHTML = "";
+                
+                if (currentSpread) {
+                    const img = document.createElement("img");
+                    img.src = currentSpread.src;
+                    containerEl.appendChild(img);
+
+                    // Calculate actual page numbers for the counter
+                    let currentPageStart = 1;
+                    for(let i = 0; i < index; i++) {
+                         currentPageStart += spreads[i].pageCount;
+                    }
+                    
+                    let pageDisplay = "";
+                    if (currentSpread.pageCount === 1) {
+                         // Single page (Cover or Back Cover)
+                         pageDisplay = `${currentPageStart}`;
+                    } else {
+                         // Double page spread
+                         const currentPageEnd = currentPageStart + 1;
+                         pageDisplay = `${currentPageStart}-${currentPageEnd}`;
+                    }
+
+                    counterEl.textContent = `${pageDisplay} / ${totalPages}`;
+                }
+
+                spreadEl.classList.remove("fade-out");
+                spreadEl.classList.add("fade-in");
+            }, 250);
+        }
+
+        function setupFullscreen() {
+            const wrapper = document.getElementById("viewer-wrapper");
+            const btn     = document.getElementById("fullscreen-btn");
+            
+            btn.addEventListener("click", () => {
+                if (!document.fullscreenElement && wrapper.requestFullscreen) {
+                    wrapper.requestFullscreen();
+                }
+            });
+            
+            document.addEventListener("fullscreenchange", () => {
+                const isFs = !!document.fullscreenElement;
+                btn.style.display = isFs ? "none" : "block";
+            });
+        }
+        
+        function setupZoomControls() {
+            const zoomInBtn = document.getElementById('zoom-in-btn');
+            const zoomOutBtn = document.getElementById('zoom-out-btn');
+            const spreadEl = document.getElementById('spread');
+            
+            let currentZoom = 1.0; 
+            const zoomStep = 0.1;
+            const minZoom = 1.0; 
+            const maxZoom = 2.0;
+
+            function updateZoom() {
+                spreadEl.style.transform = `scale(${currentZoom})`;
+                spreadEl.style.transformOrigin = 'center center';
+            }
+            
+            zoomInBtn.addEventListener('click', () => {
+                if (currentZoom < maxZoom) {
+                    currentZoom = Math.min(maxZoom, currentZoom + zoomStep);
+                    updateZoom();
+                }
+            });
+
+            zoomOutBtn.addEventListener('click', () => {
+                if (currentZoom > minZoom) {
+                    currentZoom = Math.max(minZoom, currentZoom - zoomStep);
+                    updateZoom();
+                } else if (currentZoom === minZoom) {
+                    currentZoom = 1.0; 
+                    updateZoom();
+                }
+            });
+        }
+
+        // --- Initialization ---
+
+        async function initViewer() {
+            const spreads = await discoverSpreads();
+            if (!spreads.length) {
+                console.error("No pages found. Check the file names ('...Page_01.jpg', etc.) and folder path.");
+                return;
+            }
+            
+            // Calculate the total number of physical pages
+            totalPages = spreads.reduce((sum, spread) => sum + spread.pageCount, 0);
+
+            let current = 0;
+
+            const prevBtn = document.getElementById("prev-btn");
+            const nextBtn = document.getElementById("next-btn");
+
+            function updateButtons() {
+                prevBtn.disabled = current === 0;
+                nextBtn.disabled = current === spreads.length - 1;
+            }
+
+            prevBtn.addEventListener("click", () => {
+                if (current > 0) {
+                    current--;
+                    renderSpread(spreads, current);
+                    updateButtons();
+                }
+            });
+
+            nextBtn.addEventListener("click", () => {
+                if (current < spreads.length - 1) {
+                    current++;
+                    renderSpread(spreads, current);
+                    updateButtons();
+                }
+            });
+
+            renderSpread(spreads, current);
+            updateButtons();
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            setupFullscreen();
+            setupZoomControls();
+            setupControlsHide();
+            initViewer().catch(err => console.error(err));
+        });
+    </script>
+</body>
+</html>
