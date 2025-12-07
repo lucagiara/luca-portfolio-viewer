@@ -5,8 +5,6 @@
     <title>Luca Portfolio Viewer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-        /* ... (CSS Styles are UNCHANGED) ... */
-
         * {
             box-sizing: border-box;
         }
@@ -32,9 +30,10 @@
             height: 100vh;
             max-width: 1600px;
             max-height: 1000px;
-            background: #3a3a3a; 
+            background: #3a3a3a; /* Dark gray background */
+            /* FIX 1: Reserve vertical space at the bottom for controls */
             padding: 24px; 
-            padding-bottom: 70px; 
+            padding-bottom: 70px; /* Increased bottom padding to clear the control bar */
             
             position: relative;
             overflow: hidden;
@@ -180,6 +179,7 @@
         /* Page counter and Zoom Control container */
         #bottom-controls {
             position: absolute;
+            /* Position controls in the padding area defined by the 70px padding-bottom */
             bottom: 24px; 
             left: 50%; 
             transform: translateX(-50%);
@@ -295,7 +295,7 @@
         let currentSpreadIndex = 0; 
         let spreadsData = []; 
 
-        // --- Utility Functions (mostly unchanged) ---
+        // --- Utility Functions (updated for full screen logic) ---
         function toggleControls(show) {
             const controls = document.querySelectorAll('.nav-btn, #bottom-controls, #fs-hint');
             controls.forEach(el => {
@@ -312,11 +312,13 @@
         function setupControlsHide() {
             const wrapper = document.getElementById("viewer-wrapper");
             const bottomControls = document.getElementById("bottom-controls");
+            // Controls that hide/show based on a timer (side arrows and hint)
             const navControls = document.querySelectorAll('.nav-btn, #fs-hint'); 
             
             const hideAfterDelay = () => {
                 if (currentTimeout) clearTimeout(currentTimeout);
                 currentTimeout = setTimeout(() => {
+                    // Hide controls governed by the timer
                     navControls.forEach(el => {
                         el.classList.add('controls-hidden');
                         el.classList.remove('controls-visible');
@@ -326,16 +328,19 @@
 
             const handleMouseMove = () => {
                 if (isFullscreen) {
+                    // Show side controls/hint only
                     navControls.forEach(el => {
                         el.classList.add('controls-visible');
                         el.classList.remove('controls-hidden');
                     });
-                    hideAfterDelay(); 
+                    hideAfterDelay(); // Reset timer to hide side controls/hint
                 }
             };
             
+            // Handle mouse entry/exit for the bottom bar in fullscreen
             bottomControls.addEventListener('mouseenter', () => {
                 if (isFullscreen) {
+                    // FIX 2: Show bottom bar instantly on hover in fullscreen
                     bottomControls.classList.add('controls-visible');
                     bottomControls.classList.remove('controls-hidden');
                 }
@@ -343,6 +348,7 @@
 
             bottomControls.addEventListener('mouseleave', () => {
                  if (isFullscreen) {
+                    // FIX 2: Hide bottom bar after a short delay on mouse leave
                     setTimeout(() => {
                          bottomControls.classList.add('controls-hidden');
                          bottomControls.classList.remove('controls-visible');
@@ -356,9 +362,12 @@
                 
                 if (!isFullscreen) {
                     if (currentTimeout) clearTimeout(currentTimeout);
+                    // Always show all controls when not in fullscreen (Preview Mode)
                     toggleControls(true); 
                 } else {
+                    // On entering fullscreen: Hide all controls immediately
                     toggleControls(false); 
+                    // Start timer for side controls/hint (they will show when mouse moves)
                     hideAfterDelay(); 
                 }
             });
@@ -368,14 +377,22 @@
             
             if (isFullscreen) hideAfterDelay();
         }
+
+        function checkImage(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(src);
+                img.onerror = () => reject();
+                img.src = src;
+            });
+        }
         
-        // --- OPTIMIZED IMAGE DISCOVERY ---
-        function discoverSpreads() {
+        async function discoverSpreads() {
             const folder    = "pages";
             const baseName  = "2501202-GiaramidaroLuca-Portfolio_Page_";
             const extension = "jpg";
-            const digits    = 2; // Naming is Page_01, Page_02
-            const maxImages = 50; // Assume a maximum reasonable number of spreads
+            const digits    = 2;
+            const maxImages = 100; 
 
             const spreads = [];
             
@@ -383,26 +400,28 @@
                 const number = String(i).padStart(digits, "0");
                 const src = `${folder}/${baseName}${number}.${extension}`;
                 
-                let pageCount = 0;
-                
-                if (i === 1) {
-                    pageCount = 1; // Cover
-                } else if (i < maxImages) {
-                    pageCount = 2; // Spreads
-                } else {
-                    pageCount = 1; // Assume the last image is the back cover if it were the last one
-                }
+                try {
+                    await checkImage(src);
+                    
+                    let pageCount = 0;
+                    if (i === 1) {
+                         pageCount = 1; 
+                    } else if (i < maxImages) {
+                         pageCount = 2; 
+                    }
 
-                spreads.push({ src: src, index: i, pageCount: pageCount });
+                    spreads.push({ src: src, index: i, pageCount: pageCount });
+                } catch {
+                    break;
+                }
+            }
+
+            if (spreads.length > 1) {
+                spreads[spreads.length - 1].pageCount = 1;
             }
             
-            // Note: The actual total number of spreads might be lower.
-            // We rely on the browser failing to load a non-existent image later on, 
-            // but this allows the first pages to load instantly.
             return spreads;
         }
-        
-        // The checkImage function is no longer needed since we aren't waiting for confirmation.
 
         function getSpreadIndexFromPage(targetPage) {
             let runningPage = 1;
@@ -443,45 +462,15 @@
             const counterEl  = document.getElementById("page-counter");
             const spreadEl = document.getElementById("spread");
 
-            // No fade-out/fade-in needed for first render, but keep for transitions
-            if (index > 0) {
-                spreadEl.classList.remove("fade-in");
-                spreadEl.classList.add("fade-out");
-            }
-
+            spreadEl.classList.remove("fade-in");
+            spreadEl.classList.add("fade-out");
 
             setTimeout(() => {
                 containerEl.innerHTML = "";
                 
                 if (currentSpread) {
                     const img = document.createElement("img");
-                    // LAZY LOADING: Set the src attribute here, triggering the image load only now.
-                    img.src = currentSpread.src; 
-                    
-                    // Add an error handler in case this page doesn't exist (e.g., if maxImages was too high)
-                    img.onerror = () => {
-                         // Gracefully handle if the image does not exist
-                         console.warn(`Image not found: ${currentSpread.src}. Stopping at spread ${index}.`);
-                         
-                         // If a spread is missing, we must adjust the total spreads count
-                         spreadsData.splice(index, spreadsData.length - index);
-                         // Re-calculate the total pages based on the actual detected spreads
-                         totalPages = spreadsData.reduce((sum, spread) => sum + spread.pageCount, 0);
-
-                         // Disable the next button and reset slider max
-                         updateButtons();
-                         document.getElementById('page-slider').max = spreadsData.length - 1;
-                         
-                         // Try to revert to the previous page if the error occurred on an initial load attempt
-                         if (index > 0) {
-                             changeSpread(index - 1);
-                         } else {
-                             containerEl.innerHTML = "<p style='color: white;'>Error loading initial page. Check file paths.</p>";
-                             counterEl.textContent = `0 / 0`;
-                         }
-                         return;
-                    };
-                    
+                    img.src = currentSpread.src;
                     containerEl.appendChild(img);
 
                     const currentPageStart = getCurrentVisiblePage(index);
@@ -499,10 +488,10 @@
 
                 spreadEl.classList.remove("fade-out");
                 spreadEl.classList.add("fade-in");
-            }, 50); // Reduced timeout for speed
+            }, 250);
         }
 
-        // --- Setup Functions (unchanged) ---
+        // --- Setup Functions ---
         
         function setupNavigationButtons() {
             const prevBtn = document.getElementById("prev-btn");
@@ -519,6 +508,7 @@
             prevBtn.disabled = currentSpreadIndex === 0;
             nextBtn.disabled = currentSpreadIndex === spreadsData.length - 1;
         }
+
 
         function setupFullscreen() {
             const wrapper = document.getElementById("viewer-wrapper");
@@ -621,39 +611,27 @@
         }
 
 
-        // --- OPTIMIZED INITIALIZATION ---
-        function initViewer() {
-            // 1. Instantly generate the list of possible spreads (no network requests yet)
-            spreadsData = discoverSpreads();
-            
+        // --- Initialization ---
+        async function initViewer() {
+            spreadsData = await discoverSpreads();
             if (!spreadsData.length) {
-                console.error("No pages could be mapped. Check the base name and digits.");
-                document.getElementById("spread-container").innerHTML = "<p style='color: white;'>Initialization Error: Could not map pages.</p>";
+                console.error("No pages found. Check the file names ('...Page_01.jpg', etc.) and folder path.");
                 return;
             }
             
-            // 2. Calculate MAX possible pages and set up the interface based on this estimate
             totalPages = spreadsData.reduce((sum, spread) => sum + spread.pageCount, 0);
 
-            // 3. Set up all controls
             setupNavigationButtons();
             setupFullscreen();
             setupZoomControls();
             setupKeyboardControls(); 
             setupBottomControls(); 
 
-            // 4. Trigger the load of the very first page instantly
-            changeSpread(0); 
-            
-            // OPTIONAL: Preload the next few images in the background to improve navigation speed
-            for (let i = 1; i < 5 && i < spreadsData.length; i++) {
-                 const img = new Image();
-                 img.src = spreadsData[i].src;
-            }
+            changeSpread(0);
         }
 
         window.addEventListener("DOMContentLoaded", () => {
-            initViewer();
+            initViewer().catch(err => console.error(err));
         });
     </script>
 </body>
