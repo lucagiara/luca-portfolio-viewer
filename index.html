@@ -369,17 +369,19 @@
             if (isFullscreen) hideAfterDelay();
         }
         
-        // --- OPTIMIZED IMAGE DISCOVERY ---
+        // --- IMAGE DISCOVERY FIX ---
         function discoverSpreads() {
             const folder    = "pages";
             const baseName  = "2501202-GiaramidaroLuca-Portfolio_Page_";
             const extension = "jpg";
-            const digits    = 2; // Naming is Page_01, Page_02
-            const maxImages = 50; // Assume a maximum reasonable number of spreads
+            const digits    = 2;
+            
+            // FIX: Increased the limit to allow for more pages (200 spreads = approx. 400 pages)
+            const maxPossibleSpreads = 200; 
 
             const spreads = [];
             
-            for (let i = 1; i <= maxImages; i++) {
+            for (let i = 1; i <= maxPossibleSpreads; i++) {
                 const number = String(i).padStart(digits, "0");
                 const src = `${folder}/${baseName}${number}.${extension}`;
                 
@@ -387,7 +389,7 @@
                 
                 if (i === 1) {
                     pageCount = 1; // Cover
-                } else if (i < maxImages) {
+                } else if (i < maxPossibleSpreads) {
                     pageCount = 2; // Spreads
                 } else {
                     pageCount = 1; // Assume the last image is the back cover if it were the last one
@@ -396,14 +398,10 @@
                 spreads.push({ src: src, index: i, pageCount: pageCount });
             }
             
-            // Note: The actual total number of spreads might be lower.
-            // We rely on the browser failing to load a non-existent image later on, 
-            // but this allows the first pages to load instantly.
             return spreads;
         }
         
-        // The checkImage function is no longer needed since we aren't waiting for confirmation.
-
+        // Helper function to find the spread index that contains a given physical page number
         function getSpreadIndexFromPage(targetPage) {
             let runningPage = 1;
             for (let i = 0; i < spreadsData.length; i++) {
@@ -416,6 +414,7 @@
             return 0; 
         }
         
+        // Helper function to get the current visible page number(s)
         function getCurrentVisiblePage(spreadIndex) {
             let currentPageStart = 1;
             for(let i = 0; i < spreadIndex; i++) {
@@ -424,6 +423,7 @@
             return currentPageStart;
         }
         
+        // Unified function to change the spread and update all controls
         function changeSpread(newIndex) {
             if (newIndex < 0 || newIndex >= spreadsData.length) return;
             
@@ -443,7 +443,6 @@
             const counterEl  = document.getElementById("page-counter");
             const spreadEl = document.getElementById("spread");
 
-            // No fade-out/fade-in needed for first render, but keep for transitions
             if (index > 0) {
                 spreadEl.classList.remove("fade-in");
                 spreadEl.classList.add("fade-out");
@@ -455,24 +454,21 @@
                 
                 if (currentSpread) {
                     const img = document.createElement("img");
-                    // LAZY LOADING: Set the src attribute here, triggering the image load only now.
                     img.src = currentSpread.src; 
                     
-                    // Add an error handler in case this page doesn't exist (e.g., if maxImages was too high)
+                    // Error handler for when the image does not exist (end of portfolio)
                     img.onerror = () => {
-                         // Gracefully handle if the image does not exist
-                         console.warn(`Image not found: ${currentSpread.src}. Stopping at spread ${index}.`);
+                         console.warn(`Image not found: ${currentSpread.src}. Adjusting total spreads.`);
                          
-                         // If a spread is missing, we must adjust the total spreads count
+                         // Reduce the effective size of the portfolio
                          spreadsData.splice(index, spreadsData.length - index);
-                         // Re-calculate the total pages based on the actual detected spreads
                          totalPages = spreadsData.reduce((sum, spread) => sum + spread.pageCount, 0);
 
                          // Disable the next button and reset slider max
                          updateButtons();
                          document.getElementById('page-slider').max = spreadsData.length - 1;
                          
-                         // Try to revert to the previous page if the error occurred on an initial load attempt
+                         // Revert to the previous page if the error occurred on an initial load attempt
                          if (index > 0) {
                              changeSpread(index - 1);
                          } else {
@@ -499,7 +495,7 @@
 
                 spreadEl.classList.remove("fade-out");
                 spreadEl.classList.add("fade-in");
-            }, 50); // Reduced timeout for speed
+            }, 50); 
         }
 
         // --- Setup Functions (unchanged) ---
@@ -595,6 +591,7 @@
             const slider = document.getElementById('page-slider');
             const input = document.getElementById('page-input');
 
+            // Set max based on the discovered spreads
             slider.max = spreadsData.length - 1;
             
             slider.addEventListener('input', (event) => {
@@ -621,9 +618,8 @@
         }
 
 
-        // --- OPTIMIZED INITIALIZATION ---
+        // --- INITIALIZATION ---
         function initViewer() {
-            // 1. Instantly generate the list of possible spreads (no network requests yet)
             spreadsData = discoverSpreads();
             
             if (!spreadsData.length) {
@@ -632,20 +628,17 @@
                 return;
             }
             
-            // 2. Calculate MAX possible pages and set up the interface based on this estimate
             totalPages = spreadsData.reduce((sum, spread) => sum + spread.pageCount, 0);
 
-            // 3. Set up all controls
             setupNavigationButtons();
             setupFullscreen();
             setupZoomControls();
             setupKeyboardControls(); 
             setupBottomControls(); 
 
-            // 4. Trigger the load of the very first page instantly
             changeSpread(0); 
             
-            // OPTIONAL: Preload the next few images in the background to improve navigation speed
+            // Preload the next few images
             for (let i = 1; i < 5 && i < spreadsData.length; i++) {
                  const img = new Image();
                  img.src = spreadsData[i].src;
