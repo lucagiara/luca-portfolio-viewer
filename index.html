@@ -32,7 +32,7 @@
             max-height: 1000px;
             background: #3a3a3a; 
             padding: 24px; 
-            padding-bottom: 70px; 
+            padding-bottom: 70px; /* Space for bottom controls */
             
             position: relative;
             overflow: hidden;
@@ -56,9 +56,9 @@
             align-items: center; 
             justify-content: center; 
             
-            /* Add transitions for smooth panning */
-            transition: transform 0.1s ease; 
-            cursor: grab; /* Default cursor */
+            /* Transition for smooth pan/zoom */
+            transition: opacity 0.25s ease, transform 0.1s linear; 
+            cursor: default; /* Default cursor */
         }
         
         #spread.grabbing {
@@ -83,7 +83,7 @@
             overflow: hidden;
         }
         
-        /* The image itself simply respects the container size - NO GAP FIX NEEDED! */
+        /* The image itself simply respects the container size */
         .page img {
             display: block;
             width: auto;
@@ -97,19 +97,19 @@
         /* Smooth slide/fade between spreads */
         #spread.fade-out {
             opacity: 0;
-            transform: translateX(-20px);
-            transition: opacity 0.25s ease, transform 0.25s ease;
+            /* Keep transformation simple for fade transition */
+            transition: opacity 0.25s ease;
         }
 
         #spread.fade-in {
             opacity: 1;
-            transform: translateX(0);
-            transition: opacity 0.25s ease, transform 0.25s ease;
+            /* Keep transformation simple for fade transition */
+            transition: opacity 0.25s ease;
         }
         
-        /* Reset transform when transitioning between pages */
+        /* FIX: Reset transform class applied briefly on page change */
         #spread.reset-transform {
-             transform: translate(0, 0) scale(1.0) !important;
+             transition: none !important; /* Disable transition during reset */
         }
 
 
@@ -327,7 +327,7 @@
         const minZoom = 1.0; 
         const maxZoom = 2.0;
 
-        // --- Utility Functions (mostly unchanged) ---
+        // --- Utility Functions ---
         function toggleControls(show) {
             const controls = document.querySelectorAll('.nav-btn, #bottom-controls, #fs-hint');
             controls.forEach(el => {
@@ -401,7 +401,6 @@
             if (isFullscreen) hideAfterDelay();
         }
         
-        // --- Image Check Function ---
         function checkImage(src) {
             return new Promise((resolve, reject) => {
                 const img = new Image();
@@ -437,6 +436,7 @@
             }
 
             if (discoveredSpreads.length > 0) {
+                 // Final page should always be a single page (back cover)
                  discoveredSpreads[discoveredSpreads.length - 1].pageCount = 1;
             }
             
@@ -456,7 +456,6 @@
             updateButtons();
         }
 
-        // Helper functions (mostly unchanged)
         function getSpreadIndexFromPage(targetPage) {
             let runningPage = 1;
             for (let i = 0; i < spreadsData.length; i++) {
@@ -477,27 +476,34 @@
             return currentPageStart;
         }
         
+        // --- FIX: Reset Transform Logic added here to prevent freezing ---
         function changeSpread(newIndex) {
             if (newIndex < 0 || newIndex >= spreadsData.length) return;
             
             currentSpreadIndex = newIndex;
             
-            // IMPORTANT: Reset zoom and pan on page change
+            // 1. Reset zoom and pan values immediately (CRITICAL for preventing freeze)
             currentZoom = 1.0;
             translateX = 0;
             translateY = 0;
-            document.getElementById('spread').classList.add('reset-transform');
-
-            // Wait a moment for the transform reset to apply, then render
+            
+            const spreadEl = document.getElementById('spread');
+            
+            // 2. Force the CSS transform to the reset state and apply the no-transition class
+            spreadEl.classList.add('reset-transform');
+            spreadEl.style.transform = `translate(0, 0) scale(1.0)`; 
+            
+            // 3. Wait a moment for the browser to register the reset, then proceed with the content change
             setTimeout(() => {
-                document.getElementById('spread').classList.remove('reset-transform');
+                spreadEl.classList.remove('reset-transform'); 
+                
                 renderSpread(spreadsData, currentSpreadIndex);
                 updateButtons();
                 
                 const pageStart = getCurrentVisiblePage(currentSpreadIndex);
                 document.getElementById('page-slider').value = currentSpreadIndex;
                 document.getElementById('page-input').value = pageStart;
-            }, 50);
+            }, 50); 
         }
 
 
@@ -554,9 +560,13 @@
         function updateButtons() {
             const prevBtn = document.getElementById("prev-btn");
             const nextBtn = document.getElementById("next-btn");
-            
+            const spreadEl = document.getElementById('spread');
+
             prevBtn.disabled = currentSpreadIndex === 0;
             nextBtn.disabled = spreadsData.length === 0 || currentSpreadIndex === spreadsData.length - 1;
+            
+            // Ensure the cursor is reset to default when on a new page (as zoom is 1.0)
+            spreadEl.style.cursor = 'default';
         }
 
         function setupFullscreen() {
@@ -580,7 +590,7 @@
             const spreadEl = document.getElementById('spread');
             spreadEl.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentZoom})`;
             
-            // Only show grabbing cursor if zoomed in and ready to drag
+            // Update cursor based on zoom state
             if (currentZoom > minZoom) {
                  spreadEl.style.cursor = isDragging ? 'grabbing' : 'grab';
             } else {
@@ -602,7 +612,7 @@
             const spreadEl = document.getElementById('spread');
 
             spreadEl.addEventListener('mousedown', (e) => {
-                if (currentZoom > minZoom && e.button === 0) { // Check if left mouse button is pressed
+                if (currentZoom > minZoom && e.button === 0) { 
                     e.preventDefault();
                     isDragging = true;
                     startX = e.clientX;
@@ -633,7 +643,6 @@
                 spreadEl.classList.remove('grabbing');
             });
             
-            // Prevent context menu on right-click which can interfere with dragging
             spreadEl.addEventListener('contextmenu', (e) => {
                 if (currentZoom > minZoom) {
                     e.preventDefault();
@@ -671,7 +680,7 @@
             zoomInBtn.addEventListener('click', zoomIn);
             zoomOutBtn.addEventListener('click', zoomOut);
             
-            setupPanControls(); // Call the pan setup here
+            setupPanControls(); 
         }
         
         // --- Keyboard Controls ---
@@ -698,7 +707,7 @@
                 if (event.ctrlKey || event.metaKey) { // metaKey is Cmd on Mac
                     switch (event.key) {
                         case '+':
-                        case '=': // Equals sign is often used with Ctrl to mean plus
+                        case '=': 
                             event.preventDefault(); 
                             zoomIn();
                             break;
@@ -741,9 +750,9 @@
         }
 
 
-        // --- HYBRID INITIALIZATION (FIXED) ---
+        // --- HYBRID INITIALIZATION ---
         function initViewer() {
-            // Temporary setup for instant navigation to the first few pages
+            // Temporary setup for instant navigation
             spreadsData = [
                 { src: "pages/2501202-GiaramidaroLuca-Portfolio_Page_01.jpg", index: 1, pageCount: 1 },
                 { src: "pages/2501202-GiaramidaroLuca-Portfolio_Page_02.jpg", index: 2, pageCount: 2 }
@@ -753,7 +762,7 @@
             // Set up all controls
             setupNavigationButtons();
             setupFullscreen();
-            setupZoomControls(); // Includes pan setup
+            setupZoomControls(); 
             setupKeyboardControls(); 
             setupBottomControls(); 
 
