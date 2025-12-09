@@ -97,19 +97,17 @@
         /* Smooth slide/fade between spreads */
         #spread.fade-out {
             opacity: 0;
-            /* Keep transformation simple for fade transition */
             transition: opacity 0.25s ease;
         }
 
         #spread.fade-in {
             opacity: 1;
-            /* Keep transformation simple for fade transition */
             transition: opacity 0.25s ease;
         }
         
-        /* FIX: Reset transform class applied briefly on page change */
+        /* FIX: Ensure reset is instant */
         #spread.reset-transform {
-             transition: none !important; /* Disable transition during reset */
+             transition: none !important; /* Disable all transitions during reset */
         }
 
 
@@ -476,25 +474,29 @@
             return currentPageStart;
         }
         
-        // --- FIX: Reset Transform Logic added here to prevent freezing ---
+        // --- FIX: Reset Transform Logic moved to the start of the function ---
         function changeSpread(newIndex) {
             if (newIndex < 0 || newIndex >= spreadsData.length) return;
             
-            currentSpreadIndex = newIndex;
-            
-            // 1. Reset zoom and pan values immediately (CRITICAL for preventing freeze)
+            // 1. Reset zoom and pan values immediately
             currentZoom = 1.0;
             translateX = 0;
             translateY = 0;
-            
+
             const spreadEl = document.getElementById('spread');
             
-            // 2. Force the CSS transform to the reset state and apply the no-transition class
+            // 2. Force the CSS transform to the reset state *instantly*
+            // We apply the reset-transform class (which removes transitions)
             spreadEl.classList.add('reset-transform');
+            // Then apply the zeroed transform
             spreadEl.style.transform = `translate(0, 0) scale(1.0)`; 
             
-            // 3. Wait a moment for the browser to register the reset, then proceed with the content change
+            // 3. Defer the actual page update and rendering to the next execution cycle
+            // This ensures the reset CSS is applied visually before the content changes.
             setTimeout(() => {
+                currentSpreadIndex = newIndex;
+                
+                // 4. Remove the no-transition class before rendering the new page
                 spreadEl.classList.remove('reset-transform'); 
                 
                 renderSpread(spreadsData, currentSpreadIndex);
@@ -503,7 +505,7 @@
                 const pageStart = getCurrentVisiblePage(currentSpreadIndex);
                 document.getElementById('page-slider').value = currentSpreadIndex;
                 document.getElementById('page-input').value = pageStart;
-            }, 50); 
+            }, 10); // Minimal delay (10ms) to ensure CSS reset is applied instantly without flashing
         }
 
 
