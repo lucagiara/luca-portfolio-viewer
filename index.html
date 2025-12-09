@@ -30,10 +30,9 @@
             height: 100vh;
             max-width: 1600px;
             max-height: 1000px;
-            background: #3a3a3a; /* Dark gray background */
-            /* FIX 1: Reserve vertical space at the bottom for controls */
+            background: #3a3a3a; 
             padding: 24px; 
-            padding-bottom: 70px; /* Increased bottom padding to clear the control bar */
+            padding-bottom: 70px; 
             
             position: relative;
             overflow: hidden;
@@ -41,6 +40,9 @@
             align-items: center;
             justify-content: center;
             transition: background 0.3s ease;
+            
+            /* Prevent image saving context menu on right-click */
+            user-select: none; 
         }
 
         /* Spread area (now holds one full image) */
@@ -53,7 +55,21 @@
             position: relative;
             align-items: center; 
             justify-content: center; 
+            
+            /* Add transitions for smooth panning */
+            transition: transform 0.1s ease; 
+            cursor: grab; /* Default cursor */
         }
+        
+        #spread.grabbing {
+            cursor: grabbing; /* Cursor when dragging */
+        }
+        
+        /* Ensure the content itself doesn't move when dragging the spread container */
+        #spread-container {
+             pointer-events: none;
+        }
+
 
         /* Single Page/Spread Container */
         .page {
@@ -90,6 +106,12 @@
             transform: translateX(0);
             transition: opacity 0.25s ease, transform 0.25s ease;
         }
+        
+        /* Reset transform when transitioning between pages */
+        #spread.reset-transform {
+             transform: translate(0, 0) scale(1.0) !important;
+        }
+
 
         /* Navigation arrows and other controls fade out in fullscreen */
         .controls-hidden {
@@ -179,7 +201,6 @@
         /* Page counter and Zoom Control container */
         #bottom-controls {
             position: absolute;
-            /* Position controls in the padding area defined by the 70px padding-bottom */
             bottom: 24px; 
             left: 50%; 
             transform: translateX(-50%);
@@ -294,8 +315,19 @@
         let totalPages = 0; 
         let currentSpreadIndex = 0; 
         let spreadsData = []; 
+        
+        // --- Zoom & Pan Variables ---
+        let currentZoom = 1.0; 
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        let translateX = 0;
+        let translateY = 0;
+        const zoomStep = 0.1;
+        const minZoom = 1.0; 
+        const maxZoom = 2.0;
 
-        // --- Utility Functions (updated for full screen logic) ---
+        // --- Utility Functions (mostly unchanged) ---
         function toggleControls(show) {
             const controls = document.querySelectorAll('.nav-btn, #bottom-controls, #fs-hint');
             controls.forEach(el => {
@@ -312,13 +344,11 @@
         function setupControlsHide() {
             const wrapper = document.getElementById("viewer-wrapper");
             const bottomControls = document.getElementById("bottom-controls");
-            // Controls that hide/show based on a timer (side arrows and hint)
             const navControls = document.querySelectorAll('.nav-btn, #fs-hint'); 
             
             const hideAfterDelay = () => {
                 if (currentTimeout) clearTimeout(currentTimeout);
                 currentTimeout = setTimeout(() => {
-                    // Hide controls governed by the timer
                     navControls.forEach(el => {
                         el.classList.add('controls-hidden');
                         el.classList.remove('controls-visible');
@@ -328,19 +358,16 @@
 
             const handleMouseMove = () => {
                 if (isFullscreen) {
-                    // Show side controls/hint only
                     navControls.forEach(el => {
                         el.classList.add('controls-visible');
                         el.classList.remove('controls-hidden');
                     });
-                    hideAfterDelay(); // Reset timer to hide side controls/hint
+                    hideAfterDelay(); 
                 }
             };
             
-            // Handle mouse entry/exit for the bottom bar in fullscreen
             bottomControls.addEventListener('mouseenter', () => {
                 if (isFullscreen) {
-                    // FIX 2: Show bottom bar instantly on hover in fullscreen
                     bottomControls.classList.add('controls-visible');
                     bottomControls.classList.remove('controls-hidden');
                 }
@@ -348,7 +375,6 @@
 
             bottomControls.addEventListener('mouseleave', () => {
                  if (isFullscreen) {
-                    // FIX 2: Hide bottom bar after a short delay on mouse leave
                     setTimeout(() => {
                          bottomControls.classList.add('controls-hidden');
                          bottomControls.classList.remove('controls-visible');
@@ -362,12 +388,9 @@
                 
                 if (!isFullscreen) {
                     if (currentTimeout) clearTimeout(currentTimeout);
-                    // Always show all controls when not in fullscreen (Preview Mode)
                     toggleControls(true); 
                 } else {
-                    // On entering fullscreen: Hide all controls immediately
                     toggleControls(false); 
-                    // Start timer for side controls/hint (they will show when mouse moves)
                     hideAfterDelay(); 
                 }
             });
@@ -377,7 +400,8 @@
             
             if (isFullscreen) hideAfterDelay();
         }
-
+        
+        // --- Image Check Function ---
         function checkImage(src) {
             return new Promise((resolve, reject) => {
                 const img = new Image();
@@ -387,42 +411,52 @@
             });
         }
         
-        async function discoverSpreads() {
+        // --- BACKGROUND DISCOVERY (Async) ---
+        async function discoverSpreadsAccurate() {
             const folder    = "pages";
             const baseName  = "2501202-GiaramidaroLuca-Portfolio_Page_";
             const extension = "jpg";
             const digits    = 2;
-            const maxImages = 100; 
+            const maxImages = 200; 
 
-            const spreads = [];
+            const discoveredSpreads = [];
             
             for (let i = 1; i <= maxImages; i++) {
                 const number = String(i).padStart(digits, "0");
                 const src = `${folder}/${baseName}${number}.${extension}`;
                 
                 try {
-                    await checkImage(src);
+                    await checkImage(src); 
                     
-                    let pageCount = 0;
-                    if (i === 1) {
-                         pageCount = 1; 
-                    } else if (i < maxImages) {
-                         pageCount = 2; 
-                    }
-
-                    spreads.push({ src: src, index: i, pageCount: pageCount });
+                    let pageCount = (i === 1) ? 1 : 2; 
+                    
+                    discoveredSpreads.push({ src: src, index: i, pageCount: pageCount });
                 } catch {
                     break;
                 }
             }
 
-            if (spreads.length > 1) {
-                spreads[spreads.length - 1].pageCount = 1;
+            if (discoveredSpreads.length > 0) {
+                 discoveredSpreads[discoveredSpreads.length - 1].pageCount = 1;
             }
             
-            return spreads;
+            return discoveredSpreads;
+        }
+        
+        function updateTotalPages(newSpreadsData) {
+            if (!newSpreadsData || newSpreadsData.length === 0) return;
+
+            spreadsData = newSpreadsData;
+            totalPages = spreadsData.reduce((sum, spread) => sum + spread.pageCount, 0);
+
+            const slider = document.getElementById('page-slider');
+            slider.max = spreadsData.length - 1;
+            
+            renderSpread(spreadsData, currentSpreadIndex); 
+            updateButtons();
         }
 
+        // Helper functions (mostly unchanged)
         function getSpreadIndexFromPage(targetPage) {
             let runningPage = 1;
             for (let i = 0; i < spreadsData.length; i++) {
@@ -447,12 +481,23 @@
             if (newIndex < 0 || newIndex >= spreadsData.length) return;
             
             currentSpreadIndex = newIndex;
-            renderSpread(spreadsData, currentSpreadIndex);
-            updateButtons();
             
-            const pageStart = getCurrentVisiblePage(currentSpreadIndex);
-            document.getElementById('page-slider').value = currentSpreadIndex;
-            document.getElementById('page-input').value = pageStart;
+            // IMPORTANT: Reset zoom and pan on page change
+            currentZoom = 1.0;
+            translateX = 0;
+            translateY = 0;
+            document.getElementById('spread').classList.add('reset-transform');
+
+            // Wait a moment for the transform reset to apply, then render
+            setTimeout(() => {
+                document.getElementById('spread').classList.remove('reset-transform');
+                renderSpread(spreadsData, currentSpreadIndex);
+                updateButtons();
+                
+                const pageStart = getCurrentVisiblePage(currentSpreadIndex);
+                document.getElementById('page-slider').value = currentSpreadIndex;
+                document.getElementById('page-input').value = pageStart;
+            }, 50);
         }
 
 
@@ -462,15 +507,22 @@
             const counterEl  = document.getElementById("page-counter");
             const spreadEl = document.getElementById("spread");
 
-            spreadEl.classList.remove("fade-in");
-            spreadEl.classList.add("fade-out");
+            if (index > 0) {
+                spreadEl.classList.remove("fade-in");
+                spreadEl.classList.add("fade-out");
+            }
 
             setTimeout(() => {
                 containerEl.innerHTML = "";
                 
                 if (currentSpread) {
                     const img = document.createElement("img");
-                    img.src = currentSpread.src;
+                    img.src = currentSpread.src; 
+                    
+                    img.onerror = () => {
+                        containerEl.innerHTML = "<p style='color: white;'>Failed to load page.</p>";
+                    };
+                    
                     containerEl.appendChild(img);
 
                     const currentPageStart = getCurrentVisiblePage(index);
@@ -483,16 +535,14 @@
                          pageDisplay = `${currentPageStart}-${currentPageEnd}`;
                     }
 
-                    counterEl.textContent = `${pageDisplay} / ${totalPages}`;
+                    counterEl.textContent = `${pageDisplay} / ${totalPages > 0 ? totalPages : '...'}`;
                 }
 
                 spreadEl.classList.remove("fade-out");
                 spreadEl.classList.add("fade-in");
-            }, 250);
+            }, 50); 
         }
 
-        // --- Setup Functions ---
-        
         function setupNavigationButtons() {
             const prevBtn = document.getElementById("prev-btn");
             const nextBtn = document.getElementById("next-btn");
@@ -506,9 +556,8 @@
             const nextBtn = document.getElementById("next-btn");
             
             prevBtn.disabled = currentSpreadIndex === 0;
-            nextBtn.disabled = currentSpreadIndex === spreadsData.length - 1;
+            nextBtn.disabled = spreadsData.length === 0 || currentSpreadIndex === spreadsData.length - 1;
         }
-
 
         function setupFullscreen() {
             const wrapper = document.getElementById("viewer-wrapper");
@@ -525,40 +574,107 @@
                 btn.style.display = isFs ? "none" : "block";
             });
         }
-        
-        function setupZoomControls() {
-            const zoomInBtn = document.getElementById('zoom-in-btn');
-            const zoomOutBtn = document.getElementById('zoom-out-btn');
-            const spreadEl = document.getElementById('spread');
-            
-            let currentZoom = 1.0; 
-            const zoomStep = 0.1;
-            const minZoom = 1.0; 
-            const maxZoom = 2.0;
 
-            function updateZoom() {
-                spreadEl.style.transform = `scale(${currentZoom})`;
-                spreadEl.style.transformOrigin = 'center center';
-            }
+        // --- Panning (Drag) Logic ---
+        function applyTransform() {
+            const spreadEl = document.getElementById('spread');
+            spreadEl.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentZoom})`;
             
-            zoomInBtn.addEventListener('click', () => {
-                if (currentZoom < maxZoom) {
-                    currentZoom = Math.min(maxZoom, currentZoom + zoomStep);
-                    updateZoom();
+            // Only show grabbing cursor if zoomed in and ready to drag
+            if (currentZoom > minZoom) {
+                 spreadEl.style.cursor = isDragging ? 'grabbing' : 'grab';
+            } else {
+                 spreadEl.style.cursor = 'default';
+            }
+        }
+
+        function restrictPan() {
+            const spreadEl = document.getElementById('spread');
+            const halfWidth = spreadEl.clientWidth * (currentZoom - 1) / 2;
+            const halfHeight = spreadEl.clientHeight * (currentZoom - 1) / 2;
+
+            // Clamp translation values to prevent dragging past image edges
+            translateX = Math.max(-halfWidth, Math.min(halfWidth, translateX));
+            translateY = Math.max(-halfHeight, Math.min(halfHeight, translateY));
+        }
+
+        function setupPanControls() {
+            const spreadEl = document.getElementById('spread');
+
+            spreadEl.addEventListener('mousedown', (e) => {
+                if (currentZoom > minZoom && e.button === 0) { // Check if left mouse button is pressed
+                    e.preventDefault();
+                    isDragging = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    spreadEl.classList.add('grabbing');
                 }
             });
 
-            zoomOutBtn.addEventListener('click', () => {
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+
+                translateX += dx;
+                translateY += dy;
+
+                restrictPan();
+                applyTransform();
+
+                startX = e.clientX;
+                startY = e.clientY;
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+                spreadEl.classList.remove('grabbing');
+            });
+            
+            // Prevent context menu on right-click which can interfere with dragging
+            spreadEl.addEventListener('contextmenu', (e) => {
                 if (currentZoom > minZoom) {
-                    currentZoom = Math.max(minZoom, currentZoom - zoomStep);
-                    updateZoom();
-                } else if (currentZoom === minZoom) {
-                    currentZoom = 1.0; 
-                    updateZoom();
+                    e.preventDefault();
                 }
             });
         }
         
+        // --- Zoom Controls ---
+        function zoomIn() {
+            if (currentZoom < maxZoom) {
+                currentZoom = Math.min(maxZoom, currentZoom + zoomStep);
+                applyTransform();
+            }
+        }
+
+        function zoomOut() {
+            if (currentZoom > minZoom) {
+                currentZoom = Math.max(minZoom, currentZoom - zoomStep);
+                
+                // If zooming out to minimum, reset pan position
+                if (currentZoom <= minZoom) {
+                    currentZoom = 1.0;
+                    translateX = 0;
+                    translateY = 0;
+                }
+                restrictPan();
+                applyTransform();
+            }
+        }
+        
+        function setupZoomControls() {
+            const zoomInBtn = document.getElementById('zoom-in-btn');
+            const zoomOutBtn = document.getElementById('zoom-out-btn');
+
+            zoomInBtn.addEventListener('click', zoomIn);
+            zoomOutBtn.addEventListener('click', zoomOut);
+            
+            setupPanControls(); // Call the pan setup here
+        }
+        
+        // --- Keyboard Controls ---
         function setupKeyboardControls() {
             const prevBtn = document.getElementById("prev-btn");
             const nextBtn = document.getElementById("next-btn");
@@ -566,6 +682,7 @@
             document.addEventListener('keydown', (event) => {
                 if (event.defaultPrevented) return; 
 
+                // Navigation (Arrows)
                 switch (event.key) {
                     case 'ArrowLeft':
                         event.preventDefault(); 
@@ -575,8 +692,21 @@
                         event.preventDefault(); 
                         if (!nextBtn.disabled) nextBtn.click();
                         break;
-                    default:
-                        return;
+                }
+                
+                // Zoom Shortcuts (Ctrl/Cmd + Plus/Minus)
+                if (event.ctrlKey || event.metaKey) { // metaKey is Cmd on Mac
+                    switch (event.key) {
+                        case '+':
+                        case '=': // Equals sign is often used with Ctrl to mean plus
+                            event.preventDefault(); 
+                            zoomIn();
+                            break;
+                        case '-':
+                            event.preventDefault(); 
+                            zoomOut();
+                            break;
+                    }
                 }
             });
         }
@@ -585,7 +715,7 @@
             const slider = document.getElementById('page-slider');
             const input = document.getElementById('page-input');
 
-            slider.max = spreadsData.length - 1;
+            slider.max = spreadsData.length - 1; 
             
             slider.addEventListener('input', (event) => {
                 const newIndex = parseInt(event.target.value);
@@ -598,7 +728,7 @@
                     let targetPage = parseInt(input.value);
                     
                     if (isNaN(targetPage) || targetPage < 1) targetPage = 1;
-                    if (targetPage > totalPages) targetPage = totalPages;
+                    if (totalPages > 0 && targetPage > totalPages) targetPage = totalPages;
                     
                     const newSpreadIndex = getSpreadIndexFromPage(targetPage);
                     changeSpread(newSpreadIndex);
@@ -611,27 +741,43 @@
         }
 
 
-        // --- Initialization ---
-        async function initViewer() {
-            spreadsData = await discoverSpreads();
-            if (!spreadsData.length) {
-                console.error("No pages found. Check the file names ('...Page_01.jpg', etc.) and folder path.");
-                return;
-            }
-            
-            totalPages = spreadsData.reduce((sum, spread) => sum + spread.pageCount, 0);
+        // --- HYBRID INITIALIZATION (FIXED) ---
+        function initViewer() {
+            // Temporary setup for instant navigation to the first few pages
+            spreadsData = [
+                { src: "pages/2501202-GiaramidaroLuca-Portfolio_Page_01.jpg", index: 1, pageCount: 1 },
+                { src: "pages/2501202-GiaramidaroLuca-Portfolio_Page_02.jpg", index: 2, pageCount: 2 }
+            ];
+            totalPages = 500; 
 
+            // Set up all controls
             setupNavigationButtons();
             setupFullscreen();
-            setupZoomControls();
+            setupZoomControls(); // Includes pan setup
             setupKeyboardControls(); 
             setupBottomControls(); 
 
-            changeSpread(0);
+            // Immediately display the first page
+            changeSpread(0); 
+            
+            // Start the accurate discovery in the background (NON-BLOCKING)
+            discoverSpreadsAccurate()
+                .then(finalSpreads => {
+                    if (finalSpreads && finalSpreads.length > 0) {
+                        updateTotalPages(finalSpreads); 
+                    }
+                })
+                .catch(err => console.error("Error during background discovery:", err));
+
+            // Preload the next few images
+            for (let i = 1; i < 5 && i < spreadsData.length; i++) {
+                 const img = new Image();
+                 img.src = spreadsData[i].src;
+            }
         }
 
         window.addEventListener("DOMContentLoaded", () => {
-            initViewer().catch(err => console.error(err));
+            initViewer();
         });
     </script>
 </body>
