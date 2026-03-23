@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Luca Portfolio Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: #202020;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #f5f5f5;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Gray frame behind pages (like Issuu) */
+        #viewer-wrapper {
+            width: 100%;
+            height: 100vh;
+            max-width: 1600px;
+            max-height: 1000px;
+            background: #3a3a3a;
+            padding: 24px;
+            padding-bottom: 70px;
+
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s ease;
+
+            user-select: none;
+        }
+
+        /* Spread area */
+        #spread {
+            width: 100%;
+            height: 100%;
+            background: #3a3a3a;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+            align-items: center;
+            justify-content: center;
+
+            transition: opacity 0.25s ease, transform 0.1s linear;
+            cursor: default;
+        }
+
+        #spread.grabbing {
+            cursor: grabbing;
+        }
+
+        #spread-container {
+            pointer-events: none;
+        }
+
+        .page {
+            width: 100%;
+            height: 100%;
+            background: #3a3a3a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .page img {
+            display: block;
+            width: auto;
+            max-width: 100%;
+            height: auto;
+            max-height: 100%;
+            object-fit: contain;
+            margin: 0;
+        }
+
+        /* Loading spinner */
+        #loading-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(40, 40, 40, 0.7);
+            z-index: 2000;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.4s ease;
+        }
+
+        #loading-overlay.hidden {
+            opacity: 0;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(255, 255, 255, 0.15);
+            border-top-color: #f5f5f5;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Fade transitions */
+        #spread.fade-out {
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        #spread.fade-in {
+            opacity: 1;
+            transition: opacity 0.25s ease;
+        }
+
+        #spread.reset-transform {
+            transition: none !important;
+        }
+
+        /* Controls visibility (fullscreen auto-hide) */
+        .controls-hidden {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transition: opacity 0.3s ease;
+        }
+
+        .controls-visible {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Navigation arrows */
+        .nav-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            border: none;
+            background: rgba(0, 0, 0, 0.6);
+            color: #f5f5f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1000;
+        }
+
+        #prev-btn { left: 24px; }
+        #next-btn { right: 24px; }
+
+        .nav-btn:disabled {
+            opacity: 0.25;
+            cursor: default;
+        }
+
+        .nav-btn span {
+            font-size: 22px;
+            line-height: 1;
+        }
+
+        /* Fullscreen button */
+        #fullscreen-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 1000;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #f5f5f5;
+            font-size: 13px;
+            cursor: pointer;
+            letter-spacing: 0.02em;
+        }
+
+        #fullscreen-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        /* Fullscreen exit hint */
+        #fs-hint {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 999;
+            padding: 6px 12px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #f5f5f5;
+            font-size: 13px;
+            letter-spacing: 0.02em;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        #fs-hint.visible {
+            opacity: 1;
+        }
+
+        /* Bottom controls bar */
+        #bottom-controls {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+
+            width: calc(100% - 120px);
+            max-width: 640px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            z-index: 800;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 4px 12px;
+            border-radius: 6px;
+        }
+
+        #page-controls-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            white-space: nowrap;
+            flex: 1;
+            min-width: 0;
+        }
+
+        #page-counter {
+            font-size: 12px;
+            color: #d0d0d0;
+            min-width: 80px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        #page-input {
+            width: 35px;
+            height: 20px;
+            padding: 0 4px;
+            border: none;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #f5f5f5;
+            font-size: 12px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        #page-slider {
+            flex: 1;
+            min-width: 60px;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: #555;
+            border-radius: 2px;
+            cursor: pointer;
+        }
+
+        #page-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #f5f5f5;
+        }
+
+        /* Zoom controls */
+        #zoom-control {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        #zoom-control button {
+            background: none;
+            border: none;
+            color: #f5f5f5;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        #zoom-level {
+            font-size: 11px;
+            color: #aaa;
+            min-width: 30px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="viewer-wrapper">
+        <div id="loading-overlay"><div class="spinner"></div></div>
+
+        <button id="fullscreen-btn">Full screen</button>
+        <div id="fs-hint">Press Esc to exit full screen</div>
+
+        <button id="prev-btn" class="nav-btn"><span>&lsaquo;</span></button>
+        <button id="next-btn" class="nav-btn"><span>&rsaquo;</span></button>
+
+        <div id="spread" class="fade-in">
+            <div class="page" id="spread-container"></div>
+        </div>
+
+        <div id="bottom-controls" class="controls-visible">
+            <div id="page-controls-left">
+                <input type="text" id="page-input" value="1">
+                <div id="page-counter">— / —</div>
+                <input type="range" id="page-slider" min="0" max="0" value="0">
+            </div>
+
+            <div id="zoom-control">
+                <button id="zoom-out-btn" title="Zoom out (Ctrl −)">－</button>
+                <span id="zoom-level">100%</span>
+                <button id="zoom-in-btn" title="Zoom in (Ctrl +)">＋</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ─── Constants ────────────────────────────────────────────────────────────
+        const FADE_DURATION  = 250;   // ms — must match CSS opacity transition
+        const HIDE_TIMEOUT   = 3000;  // ms — fullscreen auto-hide delay
+        const ZOOM_STEP      = 0.15;
+        const MIN_ZOOM       = 1.0;
+        const MAX_ZOOM       = 3.0;
+        const SWIPE_THRESHOLD = 50;   // px — minimum swipe distance for navigation
+
+        // Image source config — update these if pages are renamed
+        const IMAGE_FOLDER    = "pages";
+        const IMAGE_BASE_NAME = "2501202-GiaramidaroLuca-Portfolio_Page_";
+        const IMAGE_EXT       = "jpg";
+        const IMAGE_DIGITS    = 2;
+        const MAX_IMAGES      = 200;
+
+        // ─── State ────────────────────────────────────────────────────────────────
+        let isFullscreen       = false;
+        let currentTimeout     = null;
+        let totalPages         = 0;
+        let currentSpreadIndex = 0;
+        let spreadsData        = [];
+
+        // Zoom & pan
+        let currentZoom  = 1.0;
+        let isDragging   = false;
+        let startX = 0, startY = 0;
+        let translateX = 0, translateY = 0;
+
+        // Touch
+        let touchStartX = 0, touchStartY = 0;
+        let touchStartTranslateX = 0, touchStartTranslateY = 0;
+        let lastTouchDist    = 0;
+        let isTouchDragging  = false;
+
+        // ─── Utilities ────────────────────────────────────────────────────────────
+        function checkImage(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload  = () => resolve(src);
+                img.onerror = () => reject();
+                img.src     = src;
+            });
+        }
+
+        function formatZoom(z) {
+            return Math.round(z * 100) + '%';
+        }
+
+        function updateZoomLabel() {
+            document.getElementById('zoom-level').textContent = formatZoom(currentZoom);
+        }
+
+        // ─── Image Discovery (parallel) ───────────────────────────────────────────
+        async function discoverSpreads() {
+            const checks = Array.from({ length: MAX_IMAGES }, (_, i) => {
+                const n   = String(i + 1).padStart(IMAGE_DIGITS, "0");
+                const src = `${IMAGE_FOLDER}/${IMAGE_BASE_NAME}${n}.${IMAGE_EXT}`;
+                return checkImage(src)
+                    .then(() => ({ exists: true, src, index: i + 1 }))
+                    .catch(() => ({ exists: false }));
+            });
+
+            const results = await Promise.all(checks);
+
+            const discovered = [];
+            for (const r of results) {
+                if (!r.exists) break; // stop at first gap
+                const pageCount = (r.index === 1) ? 1 : 2;
+                discovered.push({ src: r.src, index: r.index, pageCount });
+            }
+
+            if (discovered.length > 0) {
+                discovered[discovered.length - 1].pageCount = 1; // back cover = single page
+            }
+
+            return discovered;
+        }
+
+        // ─── Preloading ───────────────────────────────────────────────────────────
+        function preloadAdjacent(spreadIndex) {
+            [-1, 1, 2].forEach(offset => {
+                const i = spreadIndex + offset;
+                if (i >= 0 && i < spreadsData.length) {
+                    const img   = new Image();
+                    img.src = spreadsData[i].src;
+                }
+            });
+        }
+
+        // ─── Page Mapping ─────────────────────────────────────────────────────────
+        function getSpreadIndexFromPage(targetPage) {
+            let running = 1;
+            for (let i = 0; i < spreadsData.length; i++) {
+                if (targetPage >= running && targetPage < running + spreadsData[i].pageCount) return i;
+                running += spreadsData[i].pageCount;
+            }
+            return 0;
+        }
+
+        function getCurrentVisiblePage(spreadIndex) {
+            let page = 1;
+            for (let i = 0; i < spreadIndex; i++) page += spreadsData[i].pageCount;
+            return page;
+        }
+
+        // ─── Rendering ────────────────────────────────────────────────────────────
+        function renderSpread(spreads, index) {
+            const spread  = spreads[index];
+            const container = document.getElementById("spread-container");
+            const counter   = document.getElementById("page-counter");
+            const spreadEl  = document.getElementById("spread");
+
+            // Fade out
+            if (index > 0) {
+                spreadEl.classList.remove("fade-in");
+                spreadEl.classList.add("fade-out");
+            }
+
+            setTimeout(() => {
+                container.innerHTML = "";
+
+                if (spread) {
+                    const img = document.createElement("img");
+                    img.src = spread.src;
+                    img.onerror = () => {
+                        container.innerHTML = "<p style='color:#aaa;font-size:13px'>Failed to load page.</p>";
+                    };
+                    container.appendChild(img);
+
+                    const pageStart = getCurrentVisiblePage(index);
+                    const pageEnd   = pageStart + spread.pageCount - 1;
+                    const pageLabel = spread.pageCount > 1 ? `${pageStart}–${pageEnd}` : `${pageStart}`;
+                    const total     = totalPages > 0 ? totalPages : '…';
+                    counter.textContent = `${pageLabel} / ${total}`;
+                }
+
+                spreadEl.classList.remove("fade-out");
+                spreadEl.classList.add("fade-in");
+            }, FADE_DURATION);
+        }
+
+        function updateButtons() {
+            document.getElementById("prev-btn").disabled = currentSpreadIndex === 0;
+            document.getElementById("next-btn").disabled =
+                spreadsData.length === 0 || currentSpreadIndex === spreadsData.length - 1;
+        }
+
+        // ─── Navigation ───────────────────────────────────────────────────────────
+        function changeSpread(newIndex) {
+            if (newIndex < 0 || newIndex >= spreadsData.length) return;
+
+            // Reset zoom & pan immediately
+            currentZoom = 1.0;
+            translateX  = 0;
+            translateY  = 0;
+
+            const spreadEl = document.getElementById('spread');
+            spreadEl.classList.add('reset-transform');
+            spreadEl.style.transform = 'translate(0, 0) scale(1)';
+            updateZoomLabel();
+
+            setTimeout(() => {
+                currentSpreadIndex = newIndex;
+                spreadEl.classList.remove('reset-transform');
+
+                renderSpread(spreadsData, currentSpreadIndex);
+                updateButtons();
+                preloadAdjacent(currentSpreadIndex);
+
+                const pageStart = getCurrentVisiblePage(currentSpreadIndex);
+                document.getElementById('page-slider').value = currentSpreadIndex;
+                document.getElementById('page-input').value  = pageStart;
+            }, 10);
+        }
+
+        // ─── Controls Visibility (fullscreen auto-hide) ───────────────────────────
+        function setupControlsHide() {
+            const wrapper      = document.getElementById("viewer-wrapper");
+            const bottomBar    = document.getElementById("bottom-controls");
+            const navEls       = () => document.querySelectorAll('.nav-btn, #fs-hint');
+
+            const hide = () => {
+                navEls().forEach(el => {
+                    el.classList.add('controls-hidden');
+                    el.classList.remove('controls-visible');
+                });
+            };
+
+            const show = () => {
+                navEls().forEach(el => {
+                    el.classList.add('controls-visible');
+                    el.classList.remove('controls-hidden');
+                });
+            };
+
+            const scheduleHide = () => {
+                if (currentTimeout) clearTimeout(currentTimeout);
+                currentTimeout = setTimeout(hide, HIDE_TIMEOUT);
+            };
+
+            wrapper.addEventListener('mousemove', () => {
+                if (!isFullscreen) return;
+                show();
+                scheduleHide();
+            });
+
+            wrapper.addEventListener('mouseleave', () => {
+                if (isFullscreen) scheduleHide();
+            });
+
+            bottomBar.addEventListener('mouseenter', () => {
+                if (!isFullscreen) return;
+                bottomBar.classList.add('controls-visible');
+                bottomBar.classList.remove('controls-hidden');
+            });
+
+            bottomBar.addEventListener('mouseleave', () => {
+                if (!isFullscreen) return;
+                setTimeout(() => {
+                    bottomBar.classList.add('controls-hidden');
+                    bottomBar.classList.remove('controls-visible');
+                }, 500);
+            });
+
+            document.addEventListener("fullscreenchange", () => {
+                isFullscreen = !!document.fullscreenElement;
+                if (!isFullscreen) {
+                    if (currentTimeout) clearTimeout(currentTimeout);
+                    // Restore all controls
+                    document.querySelectorAll('.nav-btn, #bottom-controls, #fs-hint').forEach(el => {
+                        el.classList.add('controls-visible');
+                        el.classList.remove('controls-hidden');
+                    });
+                } else {
+                    hide();
+                    bottomBar.classList.add('controls-hidden');
+                    bottomBar.classList.remove('controls-visible');
+                    scheduleHide();
+                }
+            });
+        }
+
+        // ─── Fullscreen ───────────────────────────────────────────────────────────
+        function setupFullscreen() {
+            const wrapper = document.getElementById("viewer-wrapper");
+            const btn     = document.getElementById("fullscreen-btn");
+
+            btn.addEventListener("click", () => {
+                if (!document.fullscreenElement && wrapper.requestFullscreen) {
+                    wrapper.requestFullscreen();
+                }
+            });
+
+            document.addEventListener("fullscreenchange", () => {
+                btn.style.display = document.fullscreenElement ? "none" : "block";
+            });
+        }
+
+        // ─── Zoom & Pan ───────────────────────────────────────────────────────────
+        function applyTransform() {
+            const spreadEl = document.getElementById('spread');
+            spreadEl.style.transform =
+                `translate(${translateX}px, ${translateY}px) scale(${currentZoom})`;
+            spreadEl.style.cursor =
+                currentZoom > MIN_ZOOM ? (isDragging ? 'grabbing' : 'grab') : 'default';
+            updateZoomLabel();
+        }
+
+        function restrictPan() {
+            const spreadEl  = document.getElementById('spread');
+            const halfW = spreadEl.clientWidth  * (currentZoom - 1) / 2;
+            const halfH = spreadEl.clientHeight * (currentZoom - 1) / 2;
+            translateX = Math.max(-halfW, Math.min(halfW, translateX));
+            translateY = Math.max(-halfH, Math.min(halfH, translateY));
+        }
+
+        function setZoom(newZoom, pivotX = 0, pivotY = 0) {
+            const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+            if (clamped === currentZoom) return;
+
+            if (clamped <= MIN_ZOOM) {
+                currentZoom = 1.0;
+                translateX  = 0;
+                translateY  = 0;
+            } else {
+                const ratio = clamped / currentZoom;
+                translateX  = pivotX + (translateX - pivotX) * ratio;
+                translateY  = pivotY + (translateY - pivotY) * ratio;
+                currentZoom = clamped;
+                restrictPan();
+            }
+            applyTransform();
+        }
+
+        function zoomIn()  { setZoom(currentZoom + ZOOM_STEP); }
+        function zoomOut() { setZoom(currentZoom - ZOOM_STEP); }
+
+        function setupZoomControls() {
+            document.getElementById('zoom-in-btn').addEventListener('click',  zoomIn);
+            document.getElementById('zoom-out-btn').addEventListener('click', zoomOut);
+        }
+
+        // Mouse wheel zoom (zooms toward cursor)
+        function setupWheelZoom() {
+            const spreadEl = document.getElementById('spread');
+            spreadEl.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+                const rect  = spreadEl.getBoundingClientRect();
+                const pivotX = e.clientX - rect.left - rect.width  / 2;
+                const pivotY = e.clientY - rect.top  - rect.height / 2;
+                setZoom(currentZoom + delta, pivotX, pivotY);
+            }, { passive: false });
+        }
+
+        // Mouse drag pan
+        function setupPanControls() {
+            const spreadEl = document.getElementById('spread');
+
+            spreadEl.addEventListener('mousedown', (e) => {
+                if (currentZoom > MIN_ZOOM && e.button === 0) {
+                    e.preventDefault();
+                    isDragging = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    spreadEl.classList.add('grabbing');
+                }
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                translateX += e.clientX - startX;
+                translateY += e.clientY - startY;
+                startX = e.clientX;
+                startY = e.clientY;
+                restrictPan();
+                applyTransform();
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+                document.getElementById('spread').classList.remove('grabbing');
+            });
+
+            // Right-click prevention when zoomed
+            spreadEl.addEventListener('contextmenu', (e) => {
+                if (currentZoom > MIN_ZOOM) e.preventDefault();
+            });
+        }
+
+        // Double-click to reset zoom (or zoom in if at 1×)
+        function setupDoubleClick() {
+            const spreadEl = document.getElementById('spread');
+            spreadEl.addEventListener('dblclick', (e) => {
+                if (currentZoom > MIN_ZOOM) {
+                    setZoom(MIN_ZOOM);
+                } else {
+                    const rect   = spreadEl.getBoundingClientRect();
+                    const pivotX = e.clientX - rect.left - rect.width  / 2;
+                    const pivotY = e.clientY - rect.top  - rect.height / 2;
+                    setZoom(2.0, pivotX, pivotY);
+                }
+            });
+        }
+
+        // ─── Touch Controls ───────────────────────────────────────────────────────
+        function setupTouchControls() {
+            const spreadEl = document.getElementById('spread');
+
+            spreadEl.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                    touchStartTranslateX = translateX;
+                    touchStartTranslateY = translateY;
+                    isTouchDragging = currentZoom > MIN_ZOOM;
+                } else if (e.touches.length === 2) {
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    lastTouchDist = Math.sqrt(dx * dx + dy * dy);
+                }
+            }, { passive: true });
+
+            spreadEl.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+
+                if (e.touches.length === 2) {
+                    // Pinch to zoom
+                    const dx   = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy   = e.touches[0].clientY - e.touches[1].clientY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const scale = dist / lastTouchDist;
+                    lastTouchDist = dist;
+                    setZoom(currentZoom * scale);
+                } else if (e.touches.length === 1 && isTouchDragging) {
+                    // Pan when zoomed
+                    translateX = touchStartTranslateX + (e.touches[0].clientX - touchStartX);
+                    translateY = touchStartTranslateY + (e.touches[0].clientY - touchStartY);
+                    restrictPan();
+                    applyTransform();
+                }
+            }, { passive: false });
+
+            spreadEl.addEventListener('touchend', (e) => {
+                if (!isTouchDragging && e.changedTouches.length === 1) {
+                    const dx = e.changedTouches[0].clientX - touchStartX;
+                    const dy = e.changedTouches[0].clientY - touchStartY;
+                    // Only treat as swipe if mostly horizontal
+                    if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                        const prev = document.getElementById("prev-btn");
+                        const next = document.getElementById("next-btn");
+                        if (dx < 0 && !next.disabled) changeSpread(currentSpreadIndex + 1);
+                        else if (dx > 0 && !prev.disabled) changeSpread(currentSpreadIndex - 1);
+                    }
+                }
+                isTouchDragging = false;
+            }, { passive: true });
+        }
+
+        // ─── Keyboard Controls ────────────────────────────────────────────────────
+        function setupKeyboardControls() {
+            document.addEventListener('keydown', (e) => {
+                if (e.defaultPrevented) return;
+
+                // Navigation
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (!document.getElementById("prev-btn").disabled)
+                        changeSpread(currentSpreadIndex - 1);
+                } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (!document.getElementById("next-btn").disabled)
+                        changeSpread(currentSpreadIndex + 1);
+                }
+
+                // Zoom (Ctrl/Cmd +/−)
+                if (e.ctrlKey || e.metaKey) {
+                    if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomIn(); }
+                    else if (e.key === '-')              { e.preventDefault(); zoomOut(); }
+                    else if (e.key === '0')              { e.preventDefault(); setZoom(MIN_ZOOM); }
+                }
+
+                // Escape to exit fullscreen
+                if (e.key === 'Escape' && document.fullscreenElement) {
+                    document.exitFullscreen();
+                }
+            });
+        }
+
+        // ─── Bottom Controls (slider + page input) ────────────────────────────────
+        function setupBottomControls() {
+            const slider = document.getElementById('page-slider');
+            const input  = document.getElementById('page-input');
+
+            slider.addEventListener('input', (e) => {
+                changeSpread(parseInt(e.target.value));
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                let target = parseInt(input.value);
+                if (isNaN(target) || target < 1) target = 1;
+                if (totalPages > 0 && target > totalPages) target = totalPages;
+                changeSpread(getSpreadIndexFromPage(target));
+            });
+
+            input.addEventListener('blur', () => {
+                input.value = getCurrentVisiblePage(currentSpreadIndex);
+            });
+        }
+
+        // ─── Initialization ───────────────────────────────────────────────────────
+        function applyDiscoveredData(newSpreads) {
+            if (!newSpreads || newSpreads.length === 0) return;
+            spreadsData  = newSpreads;
+            totalPages   = spreadsData.reduce((s, sp) => s + sp.pageCount, 0);
+
+            const slider = document.getElementById('page-slider');
+            slider.max   = spreadsData.length - 1;
+
+            // Re-render to update the page counter with real totals
+            renderSpread(spreadsData, currentSpreadIndex);
+            updateButtons();
+            preloadAdjacent(currentSpreadIndex);
+
+            // Hide loading overlay
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.add('hidden');
+            setTimeout(() => overlay.style.display = 'none', 400);
+        }
+
+        function initViewer() {
+            // Seed with first two pages so the UI is instantly interactive
+            spreadsData = [
+                { src: `${IMAGE_FOLDER}/${IMAGE_BASE_NAME}01.${IMAGE_EXT}`, index: 1, pageCount: 1 },
+                { src: `${IMAGE_FOLDER}/${IMAGE_BASE_NAME}02.${IMAGE_EXT}`, index: 2, pageCount: 2 }
+            ];
+
+            // Wire up all controls
+            setupNavigationButtons();
+            setupFullscreen();
+            setupControlsHide();
+            setupZoomControls();
+            setupWheelZoom();
+            setupPanControls();
+            setupDoubleClick();
+            setupTouchControls();
+            setupKeyboardControls();
+            setupBottomControls();
+
+            // Show first page immediately
+            changeSpread(0);
+
+            // Discover all pages in parallel (non-blocking)
+            discoverSpreads()
+                .then(applyDiscoveredData)
+                .catch(err => {
+                    console.error("Error during page discovery:", err);
+                    // Hide spinner even on error
+                    const overlay = document.getElementById('loading-overlay');
+                    overlay.classList.add('hidden');
+                });
+        }
+
+        function setupNavigationButtons() {
+            document.getElementById("prev-btn")
+                .addEventListener("click", () => changeSpread(currentSpreadIndex - 1));
+            document.getElementById("next-btn")
+                .addEventListener("click", () => changeSpread(currentSpreadIndex + 1));
+        }
+
+        window.addEventListener("DOMContentLoaded", initViewer);
+    </script>
+</body>
+</html>
