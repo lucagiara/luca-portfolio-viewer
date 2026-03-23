@@ -24,77 +24,102 @@
             justify-content: center;
         }
 
-        /* Gray frame behind pages (like Issuu) - Provides the surrounding margin */
+        /* Gray frame behind pages (like Issuu) */
         #viewer-wrapper {
             width: 100%;
             height: 100vh;
             max-width: 1600px;
             max-height: 1000px;
-            background: #3a3a3a; 
-            padding: 24px; 
-            padding-bottom: 70px; /* Space for bottom controls */
-            
+            background: #3a3a3a;
+            padding: 24px;
+            padding-bottom: 70px;
+
             position: relative;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: background 0.3s ease;
-            
-            /* Prevent image saving context menu on right-click */
-            user-select: none; 
+
+            user-select: none;
         }
 
-        /* Spread area (now holds one full image) */
+        /* Spread area */
         #spread {
             width: 100%;
-            height: 100%; 
-            background: #3a3a3a; 
+            height: 100%;
+            background: #3a3a3a;
             display: flex;
             overflow: hidden;
             position: relative;
-            align-items: center; 
-            justify-content: center; 
-            
-            /* Transition for smooth pan/zoom */
-            transition: opacity 0.25s ease, transform 0.1s linear; 
-            cursor: default; /* Default cursor */
+            align-items: center;
+            justify-content: center;
+
+            transition: opacity 0.25s ease, transform 0.1s linear;
+            cursor: default;
         }
-        
+
         #spread.grabbing {
-            cursor: grabbing; /* Cursor when dragging */
+            cursor: grabbing;
         }
-        
-        /* Ensure the content itself doesn't move when dragging the spread container */
+
         #spread-container {
-             pointer-events: none;
+            pointer-events: none;
         }
 
-
-        /* Single Page/Spread Container */
         .page {
-            width: 100%; 
-            height: 100%; 
-            background: #3a3a3a; 
+            width: 100%;
+            height: 100%;
+            background: #3a3a3a;
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
             overflow: hidden;
         }
-        
-        /* The image itself simply respects the container size */
+
         .page img {
             display: block;
             width: auto;
             max-width: 100%;
             height: auto;
             max-height: 100%;
-            object-fit: contain; 
-            margin: 0; 
+            object-fit: contain;
+            margin: 0;
         }
 
-        /* Smooth slide/fade between spreads */
+        /* Loading spinner */
+        #loading-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(40, 40, 40, 0.7);
+            z-index: 2000;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.4s ease;
+        }
+
+        #loading-overlay.hidden {
+            opacity: 0;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(255, 255, 255, 0.15);
+            border-top-color: #f5f5f5;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Fade transitions */
         #spread.fade-out {
             opacity: 0;
             transition: opacity 0.25s ease;
@@ -104,19 +129,18 @@
             opacity: 1;
             transition: opacity 0.25s ease;
         }
-        
-        /* FIX: Ensure reset is instant */
+
         #spread.reset-transform {
-             transition: none !important; /* Disable all transitions during reset */
+            transition: none !important;
         }
 
-
-        /* Navigation arrows and other controls fade out in fullscreen */
+        /* Controls visibility (fullscreen auto-hide) */
         .controls-hidden {
             opacity: 0 !important;
             pointer-events: none !important;
             transition: opacity 0.3s ease;
         }
+
         .controls-visible {
             opacity: 1 !important;
             pointer-events: auto !important;
@@ -141,7 +165,6 @@
             z-index: 1000;
         }
 
-        /* Position buttons relative to the 24px padding */
         #prev-btn { left: 24px; }
         #next-btn { right: 24px; }
 
@@ -175,7 +198,7 @@
             background: rgba(0, 0, 0, 0.9);
         }
 
-        /* Hint for fullscreen exit */
+        /* Fullscreen exit hint */
         #fs-hint {
             position: absolute;
             top: 12px;
@@ -196,40 +219,43 @@
             opacity: 1;
         }
 
-        /* Page counter and Zoom Control container */
+        /* Bottom controls bar */
         #bottom-controls {
             position: absolute;
-            bottom: 24px; 
-            left: 50%; 
+            bottom: 24px;
+            left: 50%;
             transform: translateX(-50%);
-            
-            width: 100%;
-            max-width: 600px; 
+
+            width: calc(100% - 120px);
+            max-width: 640px;
 
             display: flex;
             align-items: center;
-            justify-content: space-between; 
+            justify-content: space-between;
             gap: 16px;
             z-index: 800;
-            background: rgba(0, 0, 0, 0.6); 
+            background: rgba(0, 0, 0, 0.6);
             padding: 4px 12px;
             border-radius: 6px;
         }
-        
+
         #page-controls-left {
             display: flex;
             align-items: center;
             gap: 12px;
-            white-space: nowrap; 
+            white-space: nowrap;
+            flex: 1;
+            min-width: 0;
         }
-        
+
         #page-counter {
             font-size: 12px;
             color: #d0d0d0;
-            width: 90px; 
+            min-width: 80px;
             text-align: right;
+            flex-shrink: 0;
         }
-        
+
         #page-input {
             width: 35px;
             height: 20px;
@@ -240,11 +266,12 @@
             color: #f5f5f5;
             font-size: 12px;
             text-align: center;
+            flex-shrink: 0;
         }
-        
-        /* Custom styling for the range slider */
+
         #page-slider {
-            width: 300px; 
+            flex: 1;
+            min-width: 60px;
             -webkit-appearance: none;
             appearance: none;
             height: 4px;
@@ -261,11 +288,13 @@
             border-radius: 50%;
             background: #f5f5f5;
         }
-        
+
+        /* Zoom controls */
         #zoom-control {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             align-items: center;
+            flex-shrink: 0;
         }
 
         #zoom-control button {
@@ -277,11 +306,20 @@
             cursor: pointer;
             padding: 0;
         }
+
+        #zoom-level {
+            font-size: 11px;
+            color: #aaa;
+            min-width: 30px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
 
     <div id="viewer-wrapper">
+        <div id="loading-overlay"><div class="spinner"></div></div>
+
         <button id="fullscreen-btn">Full screen</button>
         <div id="fs-hint">Press Esc to exit full screen</div>
 
@@ -291,330 +329,344 @@
         <div id="spread" class="fade-in">
             <div class="page" id="spread-container"></div>
         </div>
-        
+
         <div id="bottom-controls" class="controls-visible">
             <div id="page-controls-left">
                 <input type="text" id="page-input" value="1">
-                <div id="page-counter"></div>
+                <div id="page-counter">— / —</div>
                 <input type="range" id="page-slider" min="0" max="0" value="0">
             </div>
 
             <div id="zoom-control">
-                <button id="zoom-out-btn">－</button>
-                <button id="zoom-in-btn">＋</button>
+                <button id="zoom-out-btn" title="Zoom out (Ctrl −)">－</button>
+                <span id="zoom-level">100%</span>
+                <button id="zoom-in-btn" title="Zoom in (Ctrl +)">＋</button>
             </div>
         </div>
     </div>
 
     <script>
-        const HIDE_TIMEOUT = 3000; 
-        let currentTimeout = null;
-        let isFullscreen = false;
-        let totalPages = 0; 
-        let currentSpreadIndex = 0; 
-        let spreadsData = []; 
-        
-        // --- Zoom & Pan Variables ---
-        let currentZoom = 1.0; 
-        let isDragging = false;
-        let startX = 0;
-        let startY = 0;
-        let translateX = 0;
-        let translateY = 0;
-        const zoomStep = 0.1;
-        const minZoom = 1.0; 
-        const maxZoom = 2.0;
+        // ─── Constants ────────────────────────────────────────────────────────────
+        const FADE_DURATION  = 250;   // ms — must match CSS opacity transition
+        const HIDE_TIMEOUT   = 3000;  // ms — fullscreen auto-hide delay
+        const ZOOM_STEP      = 0.15;
+        const MIN_ZOOM       = 1.0;
+        const MAX_ZOOM       = 3.0;
+        const SWIPE_THRESHOLD = 50;   // px — minimum swipe distance for navigation
 
-        // --- Utility Functions ---
-        function toggleControls(show) {
-            const controls = document.querySelectorAll('.nav-btn, #bottom-controls, #fs-hint');
-            controls.forEach(el => {
-                if (show) {
-                    el.classList.add('controls-visible');
-                    el.classList.remove('controls-hidden');
-                } else {
-                    el.classList.add('controls-hidden');
-                    el.classList.remove('controls-visible');
-                }
-            });
-        }
-        
-        function setupControlsHide() {
-            const wrapper = document.getElementById("viewer-wrapper");
-            const bottomControls = document.getElementById("bottom-controls");
-            const navControls = document.querySelectorAll('.nav-btn, #fs-hint'); 
-            
-            const hideAfterDelay = () => {
-                if (currentTimeout) clearTimeout(currentTimeout);
-                currentTimeout = setTimeout(() => {
-                    navControls.forEach(el => {
-                        el.classList.add('controls-hidden');
-                        el.classList.remove('controls-visible');
-                    });
-                }, HIDE_TIMEOUT);
-            };
+        // Image source config — update these if pages are renamed
+        const IMAGE_FOLDER    = "pages";
+        const IMAGE_BASE_NAME = "2501202-GiaramidaroLuca-Portfolio_Page_";
+        const IMAGE_EXT       = "jpg";
+        const IMAGE_DIGITS    = 2;
+        const MAX_IMAGES      = 200;
 
-            const handleMouseMove = () => {
-                if (isFullscreen) {
-                    navControls.forEach(el => {
-                        el.classList.add('controls-visible');
-                        el.classList.remove('controls-hidden');
-                    });
-                    hideAfterDelay(); 
-                }
-            };
-            
-            bottomControls.addEventListener('mouseenter', () => {
-                if (isFullscreen) {
-                    bottomControls.classList.add('controls-visible');
-                    bottomControls.classList.remove('controls-hidden');
-                }
-            });
+        // ─── State ────────────────────────────────────────────────────────────────
+        let isFullscreen       = false;
+        let currentTimeout     = null;
+        let totalPages         = 0;
+        let currentSpreadIndex = 0;
+        let spreadsData        = [];
 
-            bottomControls.addEventListener('mouseleave', () => {
-                 if (isFullscreen) {
-                    setTimeout(() => {
-                         bottomControls.classList.add('controls-hidden');
-                         bottomControls.classList.remove('controls-visible');
-                    }, 500); 
-                }
-            });
+        // Zoom & pan
+        let currentZoom  = 1.0;
+        let isDragging   = false;
+        let startX = 0, startY = 0;
+        let translateX = 0, translateY = 0;
 
+        // Touch
+        let touchStartX = 0, touchStartY = 0;
+        let touchStartTranslateX = 0, touchStartTranslateY = 0;
+        let lastTouchDist    = 0;
+        let isTouchDragging  = false;
 
-            document.addEventListener("fullscreenchange", () => {
-                isFullscreen = !!document.fullscreenElement;
-                
-                if (!isFullscreen) {
-                    if (currentTimeout) clearTimeout(currentTimeout);
-                    toggleControls(true); 
-                } else {
-                    toggleControls(false); 
-                    hideAfterDelay(); 
-                }
-            });
-            
-            wrapper.addEventListener('mousemove', handleMouseMove);
-            wrapper.addEventListener('mouseleave', hideAfterDelay);
-            
-            if (isFullscreen) hideAfterDelay();
-        }
-        
+        // ─── Utilities ────────────────────────────────────────────────────────────
         function checkImage(src) {
             return new Promise((resolve, reject) => {
                 const img = new Image();
-                img.onload = () => resolve(src);
+                img.onload  = () => resolve(src);
                 img.onerror = () => reject();
-                img.src = src;
+                img.src     = src;
             });
         }
-        
-        // --- BACKGROUND DISCOVERY (Async) ---
-        async function discoverSpreadsAccurate() {
-            const folder    = "pages";
-            const baseName  = "2501202-GiaramidaroLuca-Portfolio_Page_";
-            const extension = "jpg";
-            const digits    = 2;
-            const maxImages = 200; 
 
-            const discoveredSpreads = [];
-            
-            for (let i = 1; i <= maxImages; i++) {
-                const number = String(i).padStart(digits, "0");
-                const src = `${folder}/${baseName}${number}.${extension}`;
-                
-                try {
-                    await checkImage(src); 
-                    
-                    let pageCount = (i === 1) ? 1 : 2; 
-                    
-                    discoveredSpreads.push({ src: src, index: i, pageCount: pageCount });
-                } catch {
-                    break;
+        function formatZoom(z) {
+            return Math.round(z * 100) + '%';
+        }
+
+        function updateZoomLabel() {
+            document.getElementById('zoom-level').textContent = formatZoom(currentZoom);
+        }
+
+        // ─── Image Discovery (parallel) ───────────────────────────────────────────
+        async function discoverSpreads() {
+            const checks = Array.from({ length: MAX_IMAGES }, (_, i) => {
+                const n   = String(i + 1).padStart(IMAGE_DIGITS, "0");
+                const src = `${IMAGE_FOLDER}/${IMAGE_BASE_NAME}${n}.${IMAGE_EXT}`;
+                return checkImage(src)
+                    .then(() => ({ exists: true, src, index: i + 1 }))
+                    .catch(() => ({ exists: false }));
+            });
+
+            const results = await Promise.all(checks);
+
+            const discovered = [];
+            for (const r of results) {
+                if (!r.exists) break; // stop at first gap
+                const pageCount = (r.index === 1) ? 1 : 2;
+                discovered.push({ src: r.src, index: r.index, pageCount });
+            }
+
+            if (discovered.length > 0) {
+                discovered[discovered.length - 1].pageCount = 1; // back cover = single page
+            }
+
+            return discovered;
+        }
+
+        // ─── Preloading ───────────────────────────────────────────────────────────
+        function preloadAdjacent(spreadIndex) {
+            [-1, 1, 2].forEach(offset => {
+                const i = spreadIndex + offset;
+                if (i >= 0 && i < spreadsData.length) {
+                    const img   = new Image();
+                    img.src = spreadsData[i].src;
                 }
-            }
-
-            if (discoveredSpreads.length > 0) {
-                 // Final page should always be a single page (back cover)
-                 discoveredSpreads[discoveredSpreads.length - 1].pageCount = 1;
-            }
-            
-            return discoveredSpreads;
-        }
-        
-        function updateTotalPages(newSpreadsData) {
-            if (!newSpreadsData || newSpreadsData.length === 0) return;
-
-            spreadsData = newSpreadsData;
-            totalPages = spreadsData.reduce((sum, spread) => sum + spread.pageCount, 0);
-
-            const slider = document.getElementById('page-slider');
-            slider.max = spreadsData.length - 1;
-            
-            renderSpread(spreadsData, currentSpreadIndex); 
-            updateButtons();
+            });
         }
 
+        // ─── Page Mapping ─────────────────────────────────────────────────────────
         function getSpreadIndexFromPage(targetPage) {
-            let runningPage = 1;
+            let running = 1;
             for (let i = 0; i < spreadsData.length; i++) {
-                const spread = spreadsData[i];
-                if (targetPage >= runningPage && targetPage < runningPage + spread.pageCount) {
-                    return i;
-                }
-                runningPage += spread.pageCount;
+                if (targetPage >= running && targetPage < running + spreadsData[i].pageCount) return i;
+                running += spreadsData[i].pageCount;
             }
-            return 0; 
+            return 0;
         }
-        
+
         function getCurrentVisiblePage(spreadIndex) {
-            let currentPageStart = 1;
-            for(let i = 0; i < spreadIndex; i++) {
-                 currentPageStart += spreadsData[i].pageCount;
-            }
-            return currentPageStart;
-        }
-        
-        // --- FIX: Reset Transform Logic moved to the start of the function ---
-        function changeSpread(newIndex) {
-            if (newIndex < 0 || newIndex >= spreadsData.length) return;
-            
-            // 1. Reset zoom and pan values immediately
-            currentZoom = 1.0;
-            translateX = 0;
-            translateY = 0;
-
-            const spreadEl = document.getElementById('spread');
-            
-            // 2. Force the CSS transform to the reset state *instantly*
-            // We apply the reset-transform class (which removes transitions)
-            spreadEl.classList.add('reset-transform');
-            // Then apply the zeroed transform
-            spreadEl.style.transform = `translate(0, 0) scale(1.0)`; 
-            
-            // 3. Defer the actual page update and rendering to the next execution cycle
-            // This ensures the reset CSS is applied visually before the content changes.
-            setTimeout(() => {
-                currentSpreadIndex = newIndex;
-                
-                // 4. Remove the no-transition class before rendering the new page
-                spreadEl.classList.remove('reset-transform'); 
-                
-                renderSpread(spreadsData, currentSpreadIndex);
-                updateButtons();
-                
-                const pageStart = getCurrentVisiblePage(currentSpreadIndex);
-                document.getElementById('page-slider').value = currentSpreadIndex;
-                document.getElementById('page-input').value = pageStart;
-            }, 10); // Minimal delay (10ms) to ensure CSS reset is applied instantly without flashing
+            let page = 1;
+            for (let i = 0; i < spreadIndex; i++) page += spreadsData[i].pageCount;
+            return page;
         }
 
-
+        // ─── Rendering ────────────────────────────────────────────────────────────
         function renderSpread(spreads, index) {
-            const currentSpread = spreads[index];
-            const containerEl  = document.getElementById("spread-container");
-            const counterEl  = document.getElementById("page-counter");
-            const spreadEl = document.getElementById("spread");
+            const spread  = spreads[index];
+            const container = document.getElementById("spread-container");
+            const counter   = document.getElementById("page-counter");
+            const spreadEl  = document.getElementById("spread");
 
+            // Fade out
             if (index > 0) {
                 spreadEl.classList.remove("fade-in");
                 spreadEl.classList.add("fade-out");
             }
 
             setTimeout(() => {
-                containerEl.innerHTML = "";
-                
-                if (currentSpread) {
+                container.innerHTML = "";
+
+                if (spread) {
                     const img = document.createElement("img");
-                    img.src = currentSpread.src; 
-                    
+                    img.src = spread.src;
                     img.onerror = () => {
-                        containerEl.innerHTML = "<p style='color: white;'>Failed to load page.</p>";
+                        container.innerHTML = "<p style='color:#aaa;font-size:13px'>Failed to load page.</p>";
                     };
-                    
-                    containerEl.appendChild(img);
+                    container.appendChild(img);
 
-                    const currentPageStart = getCurrentVisiblePage(index);
-                    
-                    let pageDisplay = "";
-                    if (currentSpread.pageCount === 1) {
-                         pageDisplay = `${currentPageStart}`;
-                    } else {
-                         const currentPageEnd = currentPageStart + 1;
-                         pageDisplay = `${currentPageStart}-${currentPageEnd}`;
-                    }
-
-                    counterEl.textContent = `${pageDisplay} / ${totalPages > 0 ? totalPages : '...'}`;
+                    const pageStart = getCurrentVisiblePage(index);
+                    const pageEnd   = pageStart + spread.pageCount - 1;
+                    const pageLabel = spread.pageCount > 1 ? `${pageStart}–${pageEnd}` : `${pageStart}`;
+                    const total     = totalPages > 0 ? totalPages : '…';
+                    counter.textContent = `${pageLabel} / ${total}`;
                 }
 
                 spreadEl.classList.remove("fade-out");
                 spreadEl.classList.add("fade-in");
-            }, 50); 
-        }
-
-        function setupNavigationButtons() {
-            const prevBtn = document.getElementById("prev-btn");
-            const nextBtn = document.getElementById("next-btn");
-            
-            prevBtn.addEventListener("click", () => changeSpread(currentSpreadIndex - 1));
-            nextBtn.addEventListener("click", () => changeSpread(currentSpreadIndex + 1));
+            }, FADE_DURATION);
         }
 
         function updateButtons() {
-            const prevBtn = document.getElementById("prev-btn");
-            const nextBtn = document.getElementById("next-btn");
-            const spreadEl = document.getElementById('spread');
-
-            prevBtn.disabled = currentSpreadIndex === 0;
-            nextBtn.disabled = spreadsData.length === 0 || currentSpreadIndex === spreadsData.length - 1;
-            
-            // Ensure the cursor is reset to default when on a new page (as zoom is 1.0)
-            spreadEl.style.cursor = 'default';
+            document.getElementById("prev-btn").disabled = currentSpreadIndex === 0;
+            document.getElementById("next-btn").disabled =
+                spreadsData.length === 0 || currentSpreadIndex === spreadsData.length - 1;
         }
 
+        // ─── Navigation ───────────────────────────────────────────────────────────
+        function changeSpread(newIndex) {
+            if (newIndex < 0 || newIndex >= spreadsData.length) return;
+
+            // Reset zoom & pan immediately
+            currentZoom = 1.0;
+            translateX  = 0;
+            translateY  = 0;
+
+            const spreadEl = document.getElementById('spread');
+            spreadEl.classList.add('reset-transform');
+            spreadEl.style.transform = 'translate(0, 0) scale(1)';
+            updateZoomLabel();
+
+            setTimeout(() => {
+                currentSpreadIndex = newIndex;
+                spreadEl.classList.remove('reset-transform');
+
+                renderSpread(spreadsData, currentSpreadIndex);
+                updateButtons();
+                preloadAdjacent(currentSpreadIndex);
+
+                const pageStart = getCurrentVisiblePage(currentSpreadIndex);
+                document.getElementById('page-slider').value = currentSpreadIndex;
+                document.getElementById('page-input').value  = pageStart;
+            }, 10);
+        }
+
+        // ─── Controls Visibility (fullscreen auto-hide) ───────────────────────────
+        function setupControlsHide() {
+            const wrapper      = document.getElementById("viewer-wrapper");
+            const bottomBar    = document.getElementById("bottom-controls");
+            const navEls       = () => document.querySelectorAll('.nav-btn, #fs-hint');
+
+            const hide = () => {
+                navEls().forEach(el => {
+                    el.classList.add('controls-hidden');
+                    el.classList.remove('controls-visible');
+                });
+            };
+
+            const show = () => {
+                navEls().forEach(el => {
+                    el.classList.add('controls-visible');
+                    el.classList.remove('controls-hidden');
+                });
+            };
+
+            const scheduleHide = () => {
+                if (currentTimeout) clearTimeout(currentTimeout);
+                currentTimeout = setTimeout(hide, HIDE_TIMEOUT);
+            };
+
+            wrapper.addEventListener('mousemove', () => {
+                if (!isFullscreen) return;
+                show();
+                scheduleHide();
+            });
+
+            wrapper.addEventListener('mouseleave', () => {
+                if (isFullscreen) scheduleHide();
+            });
+
+            bottomBar.addEventListener('mouseenter', () => {
+                if (!isFullscreen) return;
+                bottomBar.classList.add('controls-visible');
+                bottomBar.classList.remove('controls-hidden');
+            });
+
+            bottomBar.addEventListener('mouseleave', () => {
+                if (!isFullscreen) return;
+                setTimeout(() => {
+                    bottomBar.classList.add('controls-hidden');
+                    bottomBar.classList.remove('controls-visible');
+                }, 500);
+            });
+
+            document.addEventListener("fullscreenchange", () => {
+                isFullscreen = !!document.fullscreenElement;
+                if (!isFullscreen) {
+                    if (currentTimeout) clearTimeout(currentTimeout);
+                    // Restore all controls
+                    document.querySelectorAll('.nav-btn, #bottom-controls, #fs-hint').forEach(el => {
+                        el.classList.add('controls-visible');
+                        el.classList.remove('controls-hidden');
+                    });
+                } else {
+                    hide();
+                    bottomBar.classList.add('controls-hidden');
+                    bottomBar.classList.remove('controls-visible');
+                    scheduleHide();
+                }
+            });
+        }
+
+        // ─── Fullscreen ───────────────────────────────────────────────────────────
         function setupFullscreen() {
             const wrapper = document.getElementById("viewer-wrapper");
             const btn     = document.getElementById("fullscreen-btn");
-            
+
             btn.addEventListener("click", () => {
                 if (!document.fullscreenElement && wrapper.requestFullscreen) {
                     wrapper.requestFullscreen();
                 }
             });
-            
+
             document.addEventListener("fullscreenchange", () => {
-                const isFs = !!document.fullscreenElement;
-                btn.style.display = isFs ? "none" : "block";
+                btn.style.display = document.fullscreenElement ? "none" : "block";
             });
         }
 
-        // --- Panning (Drag) Logic ---
+        // ─── Zoom & Pan ───────────────────────────────────────────────────────────
         function applyTransform() {
             const spreadEl = document.getElementById('spread');
-            spreadEl.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentZoom})`;
-            
-            // Update cursor based on zoom state
-            if (currentZoom > minZoom) {
-                 spreadEl.style.cursor = isDragging ? 'grabbing' : 'grab';
-            } else {
-                 spreadEl.style.cursor = 'default';
-            }
+            spreadEl.style.transform =
+                `translate(${translateX}px, ${translateY}px) scale(${currentZoom})`;
+            spreadEl.style.cursor =
+                currentZoom > MIN_ZOOM ? (isDragging ? 'grabbing' : 'grab') : 'default';
+            updateZoomLabel();
         }
 
         function restrictPan() {
-            const spreadEl = document.getElementById('spread');
-            const halfWidth = spreadEl.clientWidth * (currentZoom - 1) / 2;
-            const halfHeight = spreadEl.clientHeight * (currentZoom - 1) / 2;
-
-            // Clamp translation values to prevent dragging past image edges
-            translateX = Math.max(-halfWidth, Math.min(halfWidth, translateX));
-            translateY = Math.max(-halfHeight, Math.min(halfHeight, translateY));
+            const spreadEl  = document.getElementById('spread');
+            const halfW = spreadEl.clientWidth  * (currentZoom - 1) / 2;
+            const halfH = spreadEl.clientHeight * (currentZoom - 1) / 2;
+            translateX = Math.max(-halfW, Math.min(halfW, translateX));
+            translateY = Math.max(-halfH, Math.min(halfH, translateY));
         }
 
+        function setZoom(newZoom, pivotX = 0, pivotY = 0) {
+            const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+            if (clamped === currentZoom) return;
+
+            if (clamped <= MIN_ZOOM) {
+                currentZoom = 1.0;
+                translateX  = 0;
+                translateY  = 0;
+            } else {
+                const ratio = clamped / currentZoom;
+                translateX  = pivotX + (translateX - pivotX) * ratio;
+                translateY  = pivotY + (translateY - pivotY) * ratio;
+                currentZoom = clamped;
+                restrictPan();
+            }
+            applyTransform();
+        }
+
+        function zoomIn()  { setZoom(currentZoom + ZOOM_STEP); }
+        function zoomOut() { setZoom(currentZoom - ZOOM_STEP); }
+
+        function setupZoomControls() {
+            document.getElementById('zoom-in-btn').addEventListener('click',  zoomIn);
+            document.getElementById('zoom-out-btn').addEventListener('click', zoomOut);
+        }
+
+        // Mouse wheel zoom (zooms toward cursor)
+        function setupWheelZoom() {
+            const spreadEl = document.getElementById('spread');
+            spreadEl.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+                const rect  = spreadEl.getBoundingClientRect();
+                const pivotX = e.clientX - rect.left - rect.width  / 2;
+                const pivotY = e.clientY - rect.top  - rect.height / 2;
+                setZoom(currentZoom + delta, pivotX, pivotY);
+            }, { passive: false });
+        }
+
+        // Mouse drag pan
         function setupPanControls() {
             const spreadEl = document.getElementById('spread');
 
             spreadEl.addEventListener('mousedown', (e) => {
-                if (currentZoom > minZoom && e.button === 0) { 
+                if (currentZoom > MIN_ZOOM && e.button === 0) {
                     e.preventDefault();
                     isDragging = true;
                     startX = e.clientX;
@@ -626,170 +678,208 @@
             document.addEventListener('mousemove', (e) => {
                 if (!isDragging) return;
                 e.preventDefault();
-
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
-
-                translateX += dx;
-                translateY += dy;
-
-                restrictPan();
-                applyTransform();
-
+                translateX += e.clientX - startX;
+                translateY += e.clientY - startY;
                 startX = e.clientX;
                 startY = e.clientY;
+                restrictPan();
+                applyTransform();
             });
 
             document.addEventListener('mouseup', () => {
                 isDragging = false;
-                spreadEl.classList.remove('grabbing');
+                document.getElementById('spread').classList.remove('grabbing');
             });
-            
+
+            // Right-click prevention when zoomed
             spreadEl.addEventListener('contextmenu', (e) => {
-                if (currentZoom > minZoom) {
-                    e.preventDefault();
+                if (currentZoom > MIN_ZOOM) e.preventDefault();
+            });
+        }
+
+        // Double-click to reset zoom (or zoom in if at 1×)
+        function setupDoubleClick() {
+            const spreadEl = document.getElementById('spread');
+            spreadEl.addEventListener('dblclick', (e) => {
+                if (currentZoom > MIN_ZOOM) {
+                    setZoom(MIN_ZOOM);
+                } else {
+                    const rect   = spreadEl.getBoundingClientRect();
+                    const pivotX = e.clientX - rect.left - rect.width  / 2;
+                    const pivotY = e.clientY - rect.top  - rect.height / 2;
+                    setZoom(2.0, pivotX, pivotY);
                 }
             });
         }
-        
-        // --- Zoom Controls ---
-        function zoomIn() {
-            if (currentZoom < maxZoom) {
-                currentZoom = Math.min(maxZoom, currentZoom + zoomStep);
-                applyTransform();
-            }
-        }
 
-        function zoomOut() {
-            if (currentZoom > minZoom) {
-                currentZoom = Math.max(minZoom, currentZoom - zoomStep);
-                
-                // If zooming out to minimum, reset pan position
-                if (currentZoom <= minZoom) {
-                    currentZoom = 1.0;
-                    translateX = 0;
-                    translateY = 0;
+        // ─── Touch Controls ───────────────────────────────────────────────────────
+        function setupTouchControls() {
+            const spreadEl = document.getElementById('spread');
+
+            spreadEl.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                    touchStartTranslateX = translateX;
+                    touchStartTranslateY = translateY;
+                    isTouchDragging = currentZoom > MIN_ZOOM;
+                } else if (e.touches.length === 2) {
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    lastTouchDist = Math.sqrt(dx * dx + dy * dy);
                 }
-                restrictPan();
-                applyTransform();
-            }
-        }
-        
-        function setupZoomControls() {
-            const zoomInBtn = document.getElementById('zoom-in-btn');
-            const zoomOutBtn = document.getElementById('zoom-out-btn');
+            }, { passive: true });
 
-            zoomInBtn.addEventListener('click', zoomIn);
-            zoomOutBtn.addEventListener('click', zoomOut);
-            
-            setupPanControls(); 
-        }
-        
-        // --- Keyboard Controls ---
-        function setupKeyboardControls() {
-            const prevBtn = document.getElementById("prev-btn");
-            const nextBtn = document.getElementById("next-btn");
+            spreadEl.addEventListener('touchmove', (e) => {
+                e.preventDefault();
 
-            document.addEventListener('keydown', (event) => {
-                if (event.defaultPrevented) return; 
-
-                // Navigation (Arrows)
-                switch (event.key) {
-                    case 'ArrowLeft':
-                        event.preventDefault(); 
-                        if (!prevBtn.disabled) prevBtn.click();
-                        break;
-                    case 'ArrowRight':
-                        event.preventDefault(); 
-                        if (!nextBtn.disabled) nextBtn.click();
-                        break;
+                if (e.touches.length === 2) {
+                    // Pinch to zoom
+                    const dx   = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy   = e.touches[0].clientY - e.touches[1].clientY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const scale = dist / lastTouchDist;
+                    lastTouchDist = dist;
+                    setZoom(currentZoom * scale);
+                } else if (e.touches.length === 1 && isTouchDragging) {
+                    // Pan when zoomed
+                    translateX = touchStartTranslateX + (e.touches[0].clientX - touchStartX);
+                    translateY = touchStartTranslateY + (e.touches[0].clientY - touchStartY);
+                    restrictPan();
+                    applyTransform();
                 }
-                
-                // Zoom Shortcuts (Ctrl/Cmd + Plus/Minus)
-                if (event.ctrlKey || event.metaKey) { // metaKey is Cmd on Mac
-                    switch (event.key) {
-                        case '+':
-                        case '=': 
-                            event.preventDefault(); 
-                            zoomIn();
-                            break;
-                        case '-':
-                            event.preventDefault(); 
-                            zoomOut();
-                            break;
+            }, { passive: false });
+
+            spreadEl.addEventListener('touchend', (e) => {
+                if (!isTouchDragging && e.changedTouches.length === 1) {
+                    const dx = e.changedTouches[0].clientX - touchStartX;
+                    const dy = e.changedTouches[0].clientY - touchStartY;
+                    // Only treat as swipe if mostly horizontal
+                    if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                        const prev = document.getElementById("prev-btn");
+                        const next = document.getElementById("next-btn");
+                        if (dx < 0 && !next.disabled) changeSpread(currentSpreadIndex + 1);
+                        else if (dx > 0 && !prev.disabled) changeSpread(currentSpreadIndex - 1);
                     }
                 }
-            });
+                isTouchDragging = false;
+            }, { passive: true });
         }
-        
-        function setupBottomControls() {
-            const slider = document.getElementById('page-slider');
-            const input = document.getElementById('page-input');
 
-            slider.max = spreadsData.length - 1; 
-            
-            slider.addEventListener('input', (event) => {
-                const newIndex = parseInt(event.target.value);
-                changeSpread(newIndex);
-            });
-            
-            input.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    let targetPage = parseInt(input.value);
-                    
-                    if (isNaN(targetPage) || targetPage < 1) targetPage = 1;
-                    if (totalPages > 0 && targetPage > totalPages) targetPage = totalPages;
-                    
-                    const newSpreadIndex = getSpreadIndexFromPage(targetPage);
-                    changeSpread(newSpreadIndex);
+        // ─── Keyboard Controls ────────────────────────────────────────────────────
+        function setupKeyboardControls() {
+            document.addEventListener('keydown', (e) => {
+                if (e.defaultPrevented) return;
+
+                // Navigation
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (!document.getElementById("prev-btn").disabled)
+                        changeSpread(currentSpreadIndex - 1);
+                } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (!document.getElementById("next-btn").disabled)
+                        changeSpread(currentSpreadIndex + 1);
+                }
+
+                // Zoom (Ctrl/Cmd +/−)
+                if (e.ctrlKey || e.metaKey) {
+                    if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomIn(); }
+                    else if (e.key === '-')              { e.preventDefault(); zoomOut(); }
+                    else if (e.key === '0')              { e.preventDefault(); setZoom(MIN_ZOOM); }
+                }
+
+                // Escape to exit fullscreen
+                if (e.key === 'Escape' && document.fullscreenElement) {
+                    document.exitFullscreen();
                 }
             });
-            
+        }
+
+        // ─── Bottom Controls (slider + page input) ────────────────────────────────
+        function setupBottomControls() {
+            const slider = document.getElementById('page-slider');
+            const input  = document.getElementById('page-input');
+
+            slider.addEventListener('input', (e) => {
+                changeSpread(parseInt(e.target.value));
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                let target = parseInt(input.value);
+                if (isNaN(target) || target < 1) target = 1;
+                if (totalPages > 0 && target > totalPages) target = totalPages;
+                changeSpread(getSpreadIndexFromPage(target));
+            });
+
             input.addEventListener('blur', () => {
                 input.value = getCurrentVisiblePage(currentSpreadIndex);
             });
         }
 
+        // ─── Initialization ───────────────────────────────────────────────────────
+        function applyDiscoveredData(newSpreads) {
+            if (!newSpreads || newSpreads.length === 0) return;
+            spreadsData  = newSpreads;
+            totalPages   = spreadsData.reduce((s, sp) => s + sp.pageCount, 0);
 
-        // --- HYBRID INITIALIZATION ---
-        function initViewer() {
-            // Temporary setup for instant navigation
-            spreadsData = [
-                { src: "pages/2501202-GiaramidaroLuca-Portfolio_Page_01.jpg", index: 1, pageCount: 1 },
-                { src: "pages/2501202-GiaramidaroLuca-Portfolio_Page_02.jpg", index: 2, pageCount: 2 }
-            ];
-            totalPages = 500; 
+            const slider = document.getElementById('page-slider');
+            slider.max   = spreadsData.length - 1;
 
-            // Set up all controls
-            setupNavigationButtons();
-            setupFullscreen();
-            setupZoomControls(); 
-            setupKeyboardControls(); 
-            setupBottomControls(); 
+            // Re-render to update the page counter with real totals
+            renderSpread(spreadsData, currentSpreadIndex);
+            updateButtons();
+            preloadAdjacent(currentSpreadIndex);
 
-            // Immediately display the first page
-            changeSpread(0); 
-            
-            // Start the accurate discovery in the background (NON-BLOCKING)
-            discoverSpreadsAccurate()
-                .then(finalSpreads => {
-                    if (finalSpreads && finalSpreads.length > 0) {
-                        updateTotalPages(finalSpreads); 
-                    }
-                })
-                .catch(err => console.error("Error during background discovery:", err));
-
-            // Preload the next few images
-            for (let i = 1; i < 5 && i < spreadsData.length; i++) {
-                 const img = new Image();
-                 img.src = spreadsData[i].src;
-            }
+            // Hide loading overlay
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.add('hidden');
+            setTimeout(() => overlay.style.display = 'none', 400);
         }
 
-        window.addEventListener("DOMContentLoaded", () => {
-            initViewer();
-        });
+        function initViewer() {
+            // Seed with first two pages so the UI is instantly interactive
+            spreadsData = [
+                { src: `${IMAGE_FOLDER}/${IMAGE_BASE_NAME}01.${IMAGE_EXT}`, index: 1, pageCount: 1 },
+                { src: `${IMAGE_FOLDER}/${IMAGE_BASE_NAME}02.${IMAGE_EXT}`, index: 2, pageCount: 2 }
+            ];
+
+            // Wire up all controls
+            setupNavigationButtons();
+            setupFullscreen();
+            setupControlsHide();
+            setupZoomControls();
+            setupWheelZoom();
+            setupPanControls();
+            setupDoubleClick();
+            setupTouchControls();
+            setupKeyboardControls();
+            setupBottomControls();
+
+            // Show first page immediately
+            changeSpread(0);
+
+            // Discover all pages in parallel (non-blocking)
+            discoverSpreads()
+                .then(applyDiscoveredData)
+                .catch(err => {
+                    console.error("Error during page discovery:", err);
+                    // Hide spinner even on error
+                    const overlay = document.getElementById('loading-overlay');
+                    overlay.classList.add('hidden');
+                });
+        }
+
+        function setupNavigationButtons() {
+            document.getElementById("prev-btn")
+                .addEventListener("click", () => changeSpread(currentSpreadIndex - 1));
+            document.getElementById("next-btn")
+                .addEventListener("click", () => changeSpread(currentSpreadIndex + 1));
+        }
+
+        window.addEventListener("DOMContentLoaded", initViewer);
     </script>
 </body>
 </html>

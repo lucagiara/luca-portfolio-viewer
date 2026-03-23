@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Luca Giaramidaro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            width: 100%; height: 100%;
+            background: #fff;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            overflow: hidden;
+        }
+
+        /* ── Full-screen map ──────────────────────────────────────── */
+        #map-area {
+            position: fixed;
+            inset: 0;
+        }
+
+        #map-canvas, #dots-svg {
+            position: absolute;
+            top: 0; left: 0;
+        }
+
+        /* ── Password box ─────────────────────────────────────────── */
+        #pw-box {
+            position: fixed;
+            bottom: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            width: 300px;
+            border: 1px solid #d8d8d8;
+            border-radius: 4px;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        #pw-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            padding: 12px 16px;
+            font-size: 14px;
+            color: #333;
+            background: transparent;
+            letter-spacing: 0.02em;
+        }
+
+        #pw-input::placeholder { color: #bbb; }
+
+        #pw-btn {
+            border: none;
+            background: transparent;
+            padding: 0 16px;
+            color: #bbb;
+            font-size: 18px;
+            cursor: pointer;
+            line-height: 1;
+            transition: color 0.15s;
+            height: 100%;
+            display: flex;
+            align-items: center;
+        }
+
+        #pw-btn:hover { color: #444; }
+
+        #pw-error {
+            position: fixed;
+            bottom: 34px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            color: #c00;
+            white-space: nowrap;
+        }
+
+        /* ── Tooltip ──────────────────────────────────────────────── */
+        #tooltip {
+            position: fixed;
+            background: rgba(18, 18, 18, 0.88);
+            color: #f0f0f0;
+            padding: 6px 11px;
+            border-radius: 4px;
+            font-size: 12px;
+            letter-spacing: 0.03em;
+            pointer-events: none;
+            display: none;
+            z-index: 1000;
+            white-space: nowrap;
+        }
+
+        /* ── Loading ──────────────────────────────────────────────── */
+        #map-loading {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            z-index: 200;
+            transition: opacity 0.4s ease;
+        }
+
+        #map-loading.hidden { opacity: 0; pointer-events: none; }
+
+        .spin {
+            width: 20px; height: 20px;
+            border: 2px solid #eee;
+            border-top-color: #bbb;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Location dots ────────────────────────────────────────── */
+        .location-g { cursor: pointer; }
+
+        .location-g .pulse {
+            animation: pulse 2.5s ease-out infinite;
+        }
+
+        @keyframes pulse {
+            0%   { r: 4;  opacity: 0.5; }
+            100% { r: 13; opacity: 0;   }
+        }
+    </style>
+</head>
+<body>
+
+<div id="map-loading"><div class="spin"></div></div>
+
+<div id="map-area">
+    <canvas id="map-canvas"></canvas>
+    <svg id="dots-svg"></svg>
+</div>
+
+<div id="pw-box">
+    <input type="password" id="pw-input">
+    <button id="pw-btn">→</button>
+</div>
+<div id="pw-error"></div>
+<div id="tooltip"></div>
+
+<script>
+/* ─── Locations (city name only) ────────────────────────────────────────── */
+const LOCATIONS = [
+    { city: 'San Francisco, CA',                lat: 37.77,  lon: -122.42 },
+    { city: 'Sacramento, CA',                   lat: 38.58,  lon: -121.49 },
+    { city: 'San Jose / Santa Clara, CA',        lat: 37.35,  lon: -121.90 },
+    { city: 'Berkeley / Alameda / E. Palo Alto', lat: 37.65,  lon: -122.12 },
+    { city: 'Los Gatos, CA',                    lat: 37.24,  lon: -121.97 },
+    { city: 'Bakersfield, CA',                  lat: 35.37,  lon: -119.02 },
+    { city: 'Phoenix, AZ',                      lat: 33.45,  lon: -112.07 },
+    { city: 'Kansas City, MO',                  lat: 39.10,  lon:  -94.58 },
+    { city: 'Dallas, TX',                       lat: 32.78,  lon:  -96.80 },
+    { city: 'Austin, TX',                       lat: 30.27,  lon:  -97.74 },
+    { city: 'Ottawa, Canada',                   lat: 45.42,  lon:  -75.70 },
+    { city: 'Toronto, Canada',                  lat: 43.65,  lon:  -79.38 },
+    { city: 'Recife, Brazil',                   lat: -8.05,  lon:  -34.88 },
+    { city: 'Mecca, Saudi Arabia',              lat: 21.39,  lon:   39.86 },
+    { city: 'Dubai, UAE',                       lat: 25.20,  lon:   55.27 },
+    { city: 'Istanbul, Turkey',                 lat: 41.01,  lon:   28.98 },
+    { city: 'Italy',                            lat: 42.80,  lon:   12.50 },
+    { city: 'Guangzhou / Shenzhen, China',      lat: 22.90,  lon:  113.70 },
+    { city: 'Hefei, China',                     lat: 31.82,  lon:  117.23 },
+    { city: 'Dalian, China',                    lat: 38.91,  lon:  121.61 },
+    { city: 'Daqing, China',                    lat: 46.59,  lon:  125.10 },
+    { city: 'Nha Trang, Vietnam',               lat: 12.24,  lon:  109.20 },
+    { city: 'Nusajaya, Malaysia',               lat:  1.44,  lon:  103.76 }
+];
+
+/* ─── Password ───────────────────────────────────────────────────────────── */
+const PASSWORD    = 'portfolio2025'; // ← change here
+const DESTINATION = 'index-flip.html';
+
+document.getElementById('pw-btn').addEventListener('click', checkPw);
+document.getElementById('pw-input').addEventListener('keydown', e => {
+    document.getElementById('pw-error').textContent = '';
+    if (e.key === 'Enter') checkPw();
+});
+
+function checkPw() {
+    if (document.getElementById('pw-input').value === PASSWORD) {
+        window.location.href = DESTINATION;
+    } else {
+        document.getElementById('pw-error').textContent = 'Incorrect password';
+        document.getElementById('pw-input').value = '';
+        document.getElementById('pw-input').focus();
+    }
+}
+
+/* ─── Map ────────────────────────────────────────────────────────────────── */
+async function initMap() {
+    const mapArea = document.getElementById('map-area');
+    const canvas  = document.getElementById('map-canvas');
+    const svgEl   = document.getElementById('dots-svg');
+    const tooltip = document.getElementById('tooltip');
+    const loading = document.getElementById('map-loading');
+
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+
+    canvas.width  = W;
+    canvas.height = H;
+
+    const svg = d3.select(svgEl).attr('width', W).attr('height', H);
+
+    /* Load world topology */
+    let world;
+    try {
+        world = await d3.json(
+            'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'
+        );
+    } catch {
+        loading.innerHTML = '<span style="color:#aaa;font-size:13px">Map unavailable — check connection.</span>';
+        return;
+    }
+
+    const land = topojson.merge(world, world.objects.countries.geometries);
+
+    /* Mercator projection */
+    const projection = d3.geoMercator()
+        .scale(W * 0.156)
+        .translate([W / 2, H * 0.565]);
+
+    /* Draw dotted land on canvas */
+    const tmp    = document.createElement('canvas');
+    tmp.width    = W;
+    tmp.height   = H;
+    const tCtx   = tmp.getContext('2d');
+    const pathFn = d3.geoPath(projection, tCtx);
+    tCtx.beginPath();
+    pathFn(land);
+
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#c4c4c4';
+
+    const SPACING = 7;
+    const RADIUS  = 2.1;
+
+    for (let x = SPACING / 2; x < W; x += SPACING) {
+        for (let y = SPACING / 2; y < H; y += SPACING) {
+            if (tCtx.isPointInPath(x, y, 'evenodd')) {
+                ctx.beginPath();
+                ctx.arc(x, y, RADIUS, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+    }
+
+    /* Draw red location dots */
+    const groups = svg.selectAll('.location-g')
+        .data(LOCATIONS)
+        .enter()
+        .append('g')
+        .attr('class', 'location-g')
+        .attr('transform', d => {
+            const [x, y] = projection([d.lon, d.lat]);
+            return `translate(${x},${y})`;
+        });
+
+    /* Pulse ring */
+    groups.append('circle')
+        .attr('class', 'pulse')
+        .attr('r', 4)
+        .attr('fill', 'rgba(211,47,47,0.4)')
+        .attr('stroke', 'none');
+
+    /* Main dot */
+    groups.append('circle')
+        .attr('class', 'main-dot')
+        .attr('r', 4)
+        .attr('fill', '#d32f2f')
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 1.5);
+
+    /* Hover */
+    groups
+        .on('mouseover', function (event, d) {
+            d3.select(this).select('.main-dot')
+                .attr('r', 6)
+                .attr('fill', '#f44336');
+            tooltip.textContent = d.city;
+            tooltip.style.display = 'block';
+            placeTooltip(event);
+        })
+        .on('mousemove', placeTooltip)
+        .on('mouseout', function () {
+            d3.select(this).select('.main-dot')
+                .attr('r', 4)
+                .attr('fill', '#d32f2f');
+            tooltip.style.display = 'none';
+        });
+
+    /* Hide loading */
+    loading.classList.add('hidden');
+    setTimeout(() => loading.style.display = 'none', 450);
+}
+
+function placeTooltip(event) {
+    const tt = document.getElementById('tooltip');
+    const tw = tt.offsetWidth || 120;
+    const vw = window.innerWidth;
+    let left = event.clientX + 12;
+    let top  = event.clientY - 28;
+    if (left + tw > vw - 10) left = event.clientX - tw - 12;
+    if (top < 8) top = event.clientY + 12;
+    tt.style.left = left + 'px';
+    tt.style.top  = top  + 'px';
+}
+
+window.addEventListener('DOMContentLoaded', initMap);
+</script>
+</body>
+</html>
