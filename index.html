@@ -224,6 +224,24 @@
 
         #zoom-label { font-size: 11px; color: #999; min-width: 32px; text-align: center; }
 
+        /*
+         * Fix turn.js fold stall at the end.
+         *
+         * turn.js sets transitions inline as: "all Xms ease"
+         * "ease" = cubic-bezier(0.25, 0.1, 0.25, 1.0) — it decelerates heavily
+         * in the final ~20%, making the page appear to stall before snapping flat.
+         *
+         * Override with a curve that has NO deceleration tail:
+         *   cubic-bezier(0.42, 0, 0.72, 1) — ease-in with a gentle mid-acceleration
+         *   so the page gains speed as it opens and lands cleanly with no stall.
+         */
+        .turn-page-wrapper,
+        .turn-page-gradient,
+        .turn-fold {
+            -webkit-transition-timing-function: cubic-bezier(0.42, 0, 0.72, 1) !important;
+                    transition-timing-function: cubic-bezier(0.42, 0, 0.72, 1) !important;
+        }
+
         /* ── Controls auto-hide in fullscreen ──────────────────────── */
         .hide-in-fs { transition: opacity 0.3s ease; }
 
@@ -421,18 +439,16 @@ function loadTurnPage(tp) {
 
 /*
  * Load all turn pages belonging to a given source page number.
- * Cover  (n=1) → 1 turn page.
- * Others (n≥2) → 2 turn pages (left half + right half).
+ * Cover       (n=1)          → 1 turn page.
+ * Inner pages (2 ≤ n < last) → 2 turn pages (left half + right half).
+ * Back cover  (n=last, n≥2)  → 1 turn page (single left slot).
  */
 function loadSourcePage(n) {
     if (n < 1 || n > SOURCE_TOTAL) return;
-    if (n === 1) {
-        loadTurnPage(1);
-    } else {
-        const tp = sourceToTurn(n);
-        loadTurnPage(tp);
-        loadTurnPage(tp + 1);
-    }
+    const tp = sourceToTurn(n);
+    const isSingleSlot = (n === 1) || (n === SOURCE_TOTAL && SOURCE_TOTAL > 1);
+    loadTurnPage(tp);
+    if (!isSingleSlot) loadTurnPage(tp + 1);
 }
 
 function preloadAroundSource(n, radius) {
@@ -519,9 +535,17 @@ $(document).ready(async function () {
 
     /*
      * Total turn.js pages:
-     *   1 (cover) + (SOURCE_TOTAL − 1) landscape images × 2 half-pages each
+     *   Cover (source 1)      → 1 turn page  (odd  → RIGHT, first spread)
+     *   Inner (sources 2…n-1) → 2 turn pages each (left/right halves)
+     *   Back cover (source n) → 1 turn page  (even → LEFT,  last spread)
+     *
+     *   Total = 1 + (SOURCE_TOTAL − 2) × 2 + 1 = 2 × (SOURCE_TOTAL − 1)
+     *
+     *   Even total is critical: in turn.js double mode an even last page
+     *   falls on the LEFT, mirroring how page 1 (front cover) sits on the RIGHT.
+     *   For a single-page portfolio (SOURCE_TOTAL === 1) there is only the cover.
      */
-    TOTAL_TURN_PGS = 1 + (SOURCE_TOTAL - 1) * 2;
+    TOTAL_TURN_PGS = SOURCE_TOTAL === 1 ? 1 : 2 * (SOURCE_TOTAL - 1);
 
     /* 2. Calculate book dimensions */
     const { w, h } = getBookDimensions();
@@ -538,11 +562,14 @@ $(document).ready(async function () {
     document.getElementById('book').appendChild(coverDiv);
     turnPageEls.push(coverDiv);  // index 0 → turn page 1
 
-    /* Turn pages 2…TOTAL_TURN_PGS — left/right halves of landscape images */
+    /* Turn pages 2…TOTAL_TURN_PGS — left/right halves of landscape images,
+     * plus a single back-cover slot for the very last source image.          */
     for (let n = 2; n <= SOURCE_TOTAL; n++) {
-        // Left half
+        const isBackCover = (n === SOURCE_TOTAL) && (SOURCE_TOTAL > 1);
+
+        // Left half — or full back-cover slot (styled like the front cover)
         const leftDiv = document.createElement('div');
-        leftDiv.className       = 'page page-land-left';
+        leftDiv.className       = isBackCover ? 'page page-cover' : 'page page-land-left';
         leftDiv.dataset.sourceN = String(n);
         const leftSpinner = document.createElement('div');
         leftSpinner.className   = 'page-loading';
@@ -550,15 +577,17 @@ $(document).ready(async function () {
         document.getElementById('book').appendChild(leftDiv);
         turnPageEls.push(leftDiv);
 
-        // Right half
-        const rightDiv = document.createElement('div');
-        rightDiv.className       = 'page page-land-right';
-        rightDiv.dataset.sourceN = String(n);
-        const rightSpinner = document.createElement('div');
-        rightSpinner.className   = 'page-loading';
-        rightDiv.appendChild(rightSpinner);
-        document.getElementById('book').appendChild(rightDiv);
-        turnPageEls.push(rightDiv);
+        if (!isBackCover) {
+            // Right half (inner landscape spreads only)
+            const rightDiv = document.createElement('div');
+            rightDiv.className       = 'page page-land-right';
+            rightDiv.dataset.sourceN = String(n);
+            const rightSpinner = document.createElement('div');
+            rightSpinner.className   = 'page-loading';
+            rightDiv.appendChild(rightSpinner);
+            document.getElementById('book').appendChild(rightDiv);
+            turnPageEls.push(rightDiv);
+        }
     }
 
     /* 4. Initialise turn.js ──────────────────────────────────────────────── */
